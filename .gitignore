@@ -1,3 +1,4 @@
+
 bin
 src/messenger/.idea/workspace.xml
 src/messenger/webim/install/package
@@ -7,3 +8,4 @@ src/mibewjava/.idea/workspace.xml
 src/mibewjava/org.mibew.notifier/resources/
 mibew.ini
 .DS_Store
+src/messenger/webim/libs/config.php
