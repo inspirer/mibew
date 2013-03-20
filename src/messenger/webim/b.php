@@ -51,13 +51,22 @@ if($groupid) {
 }
 
 $image_postfix = has_online_operators($groupid) ? "on" : "off";
-$filename = "locales/${lang}/button/${image}_${image_postfix}.gif";
+//$filename = "locales/${lang}/button/${image}_${image_postfix}.gif";
+$filename = "locales/${lang}/button/${image}_${image_postfix}";
+if (file_exists("$filename.gif")) {
+    $content_type = "image/gif";
+    $filename .= ".gif";
+}
+else {
+    $content_type = "image/png";
+    $filename .= ".png";
+}
 
 $fp = fopen($filename, 'rb') or die("no image");
 header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
 header("Cache-Control: no-store, no-cache, must-revalidate");
 header("Pragma: no-cache");
-header("Content-Type: image/gif");
+header("Content-Type: $content_type");
 header("Content-Length: ".filesize($filename));
 if(function_exists('fpassthru')){
 	@fpassthru($fp);
