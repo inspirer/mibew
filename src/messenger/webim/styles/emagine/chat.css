@@ -1,0 +1,279 @@
+body {
+    min-width: 600px;
+    font-family: 'Ubuntu', sans-serif;
+    font-size: 16px;
+}
+a {
+    color: #1f5875;
+    text-decoration: none;
+}
+a:hover {
+    color: #008AD9;
+    text-decoration: none;
+}
+a.logo-img, a.logo-txt {
+    float: left;
+    display: block;
+    overflow: hidden;
+    /*width: 160px;*/
+    border: 1px dashed black;
+    margin: 10px 10px 0px 10px;
+}
+a.logo-img {
+    height: 60px;
+}
+a.logo-txt {
+    font-size: 24px;
+    height: 30px;
+    text-align: center;
+    text-transform: uppercase;
+    padding: 15px 0px 15px 0px;
+}
+div.menu-top {
+    float: right;
+    font-size: 12px;
+    text-align: right;
+    /*width: 500px;*/
+    /*border: 1px dashed black;*/
+    margin-left: 10px;
+}
+a.closethread {
+    float: right;
+    display: block;
+    background: transparent url(images/wmchat.png) no-repeat scroll -108px -34px;
+    width: 15px;
+    height: 15px;
+    margin-left: 4px;
+}
+div.menu-top, div.menu-main {
+    width: 70%;
+}
+a.logo-img, a.logo-txt {
+    width: 20%;
+}
+div.menu-main {
+    color: #fff;
+    float: right;
+    /*width: 490px;*/
+    height: 36px;
+    padding: 10px 25px 10px 10px;
+    margin-top: 3px;
+    border-left: 2px solid #1f5875;
+    border-right: 0px;
+    border-top: 2px solid #1f5875;
+    border-bottom: 2px solid #1f5875;
+    -webkit-border-top-left-radius: 15px;
+    -webkit-border-bottom-left-radius: 15px;
+    -moz-border-radius-topleft: 15px;
+    -moz-border-radius-bottomleft: 15px;
+    border-top-left-radius: 15px;
+    border-bottom-left-radius: 15px;
+    background: #2e7fa5; /* Old browsers */
+    background: -moz-linear-gradient(top,  #2e7fa5 0%, #1f5875 100%); /* FF3.6+ */
+    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#2e7fa5), color-stop(100%,#1f5875)); /* Chrome,Safari4+ */
+    background: -webkit-linear-gradient(top,  #2e7fa5 0%,#1f5875 100%); /* Chrome10+,Safari5.1+ */
+    background: -o-linear-gradient(top,  #2e7fa5 0%,#1f5875 100%); /* Opera 11.10+ */
+    background: -ms-linear-gradient(top,  #2e7fa5 0%,#1f5875 100%); /* IE10+ */
+    background: linear-gradient(to bottom,  #2e7fa5 0%,#1f5875 100%); /* W3C */
+    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#2e7fa5', endColorstr='#1f5875',GradientType=0 ); /* IE6-9 */
+}
+a.mail-history, #togglesound, #refresh, #redirect-to, #visit-history, #main-close {
+    overflow: hidden;
+    margin-left: 3px;
+    float: right;
+    width: 35px;
+    height: 35px;
+    display: block;
+    -webkit-border-radius: 10px;
+    -moz-border-radius: 10px;
+    border-radius: 10px;
+    border: 1px solid #C9C9C9;
+    background: #2e7fa5; /* Old browsers */
+    background: -moz-linear-gradient(top,  #2e7fa5 0%, #1f5875 100%); /* FF3.6+ */
+    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#2e7fa5), color-stop(100%,#1f5875)); /* Chrome,Safari4+ */
+    background: -webkit-linear-gradient(top,  #2e7fa5 0%,#1f5875 100%); /* Chrome10+,Safari5.1+ */
+    background: -o-linear-gradient(top,  #2e7fa5 0%,#1f5875 100%); /* Opera 11.10+ */
+    background: -ms-linear-gradient(top,  #2e7fa5 0%,#1f5875 100%); /* IE10+ */
+    background: linear-gradient(to bottom,  #2e7fa5 0%,#1f5875 100%); /* W3C */
+    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#2e7fa5', endColorstr='#1f5875',GradientType=0 ); /* IE6-9 */
+}
+a.mail-history {
+    background: url(images/buttons/emagine-mail.png) no-repeat 0px center;
+}
+.tplimage.isound {
+    width: 35px;
+    height: 35px;
+    background: url(images/buttons/emagine-sound-on.png) no-repeat 0px center;
+}
+.tplimage.inosound {
+    width: 35px;
+    height: 35px;
+    background: url(images/buttons/emagine-sound-off.png) no-repeat 0px center;
+}
+#redirect-to {
+    width: 35px;
+    height: 35px;
+    background: url(images/buttons/emagine-redirect.png) no-repeat 0px center;
+}
+#visit-history {
+    width: 35px;
+    height: 35px;
+    background: url(images/buttons/emagine-history.png) no-repeat 0px center;    
+}
+#main-close {
+    width: 35px;
+    height: 35px;
+    background: url(images/buttons/emagine-close.png) no-repeat 0px center;    
+}
+/*
+#togglesound {
+    background: url(images/buttons/emagine-sound-on.png) no-repeat 0px center;
+}
+*/
+#refresh {
+    background: url(images/buttons/emagine-refresh.png) no-repeat 0px center;
+}
+#changename1 label, #changename2 label {
+    float: left;
+    display: block;
+    text-shadow: -1px -1px 1px #000; 
+    width: auto;
+    height: 22px;
+    padding: 7px 0px 7px 0px;
+    margin-right: 6px;
+}
+div.name-editor {
+    float: left;
+    display: block;
+    padding: 3px 4px 3px 10px;
+    -webkit-border-radius: 10px;
+    -moz-border-radius: 10px;
+    border-radius: 10px;
+    border: 2px solid #C9C9C9;
+    background-color: #fff;
+}
+input#uname {
+    font-family: 'Ubuntu', sans-serif;
+    font-size: 16px;
+    border: 0px;
+    background-color: #fff;
+}
+div.name-editor a {
+    float: right;
+    color: #fff;
+    display: block;
+    width: auto;
+    height: 14px;
+    font-size: 14px;
+    padding: 5px;
+    -webkit-border-radius: 5px;
+    -moz-border-radius: 5px;
+    border-radius: 5px;
+    border: 1px solid #1f5875;
+    background: #2e7fa5; /* Old browsers */
+    background: -moz-linear-gradient(top,  #2e7fa5 0%, #1f5875 100%); /* FF3.6+ */
+    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#2e7fa5), color-stop(100%,#1f5875)); /* Chrome,Safari4+ */
+    background: -webkit-linear-gradient(top,  #2e7fa5 0%,#1f5875 100%); /* Chrome10+,Safari5.1+ */
+    background: -o-linear-gradient(top,  #2e7fa5 0%,#1f5875 100%); /* Opera 11.10+ */
+    background: -ms-linear-gradient(top,  #2e7fa5 0%,#1f5875 100%); /* IE10+ */
+    background: linear-gradient(to bottom,  #2e7fa5 0%,#1f5875 100%); /* W3C */
+    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#2e7fa5', endColorstr='#1f5875',GradientType=0 ); /* IE6-9 */
+}
+.chat-history {
+    height: 180px;
+}
+.chat-history, .chat-message {
+    width: 94%;
+    padding: 10px;
+    margin: 10px;
+    border: 2px solid #C9C9C9;
+    background-color: #fff;
+    -webkit-border-radius: 15px;
+    -moz-border-radius: 15px;
+    border-radius: 15px;    
+}
+#chatwnd {
+    /*
+    width: 600px;
+    height: 180px;
+    */
+    overflow-x: no-display;
+    overflow-y: scroll;
+}
+.chat-message {
+    height: 68px;
+}
+#msgwnd {
+    width: 75%;
+    height: 50px;
+    border: none;
+    font-family: 'Ubuntu', sans-serif;
+    font-size: 16px;
+    margin-bottom: 3px;
+}
+#sndmessagelnk {
+    color: #fff;
+    text-shadow: -1px -1px 1px #000; 
+    float: right;
+    display: block;
+    width: 120px;
+    height: 20px;
+    padding: 23px 10px;
+    text-align: center;
+    -webkit-border-radius: 10px;
+    -moz-border-radius: 10px;
+    border-radius: 10px;
+    border: 1px solid #1f5875;
+    background: #2e7fa5; /* Old browsers */
+    background: -moz-linear-gradient(top,  #2e7fa5 0%, #1f5875 100%); /* FF3.6+ */
+    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%,#2e7fa5), color-stop(100%,#1f5875)); /* Chrome,Safari4+ */
+    background: -webkit-linear-gradient(top,  #2e7fa5 0%,#1f5875 100%); /* Chrome10+,Safari5.1+ */
+    background: -o-linear-gradient(top,  #2e7fa5 0%,#1f5875 100%); /* Opera 11.10+ */
+    background: -ms-linear-gradient(top,  #2e7fa5 0%,#1f5875 100%); /* IE10+ */
+    background: linear-gradient(to bottom,  #2e7fa5 0%,#1f5875 100%); /* W3C */
+    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#2e7fa5', endColorstr='#1f5875',GradientType=0 ); /* IE6-9 */    
+}
+#typingdiv {
+    font-size: 12px;
+    color: #B11E23;
+}
+#poweredBy {
+    float: right;
+    margin-right: 10px;
+    font-size: 12px;
+}
+.clearfix {
+    clear: both;
+}
+.message span.time {
+	color: #000000;
+}
+
+.message span.nuser {
+	color: #B11E23;
+	font-weight: bold;
+}
+
+.message span.nagent {
+	font-weight: bold;
+}
+
+.message span.minf {
+	color: #1E48B1;
+	/*font-size: 11px;*/
+}
+
+.message span.mevent {
+	color: #A1A1A1;
+	/*font-size: 11px;*/
+}
+
+.message span.mhidden {
+	color: #A1A1A1;
+	/*font-size: 11px;*/
+}
+
+.message span.mconn {
+	color: #A1A1A1;
+	/*font-size: 11px;*/
+}
