@@ -41,7 +41,7 @@ function thread_info($id)
 }
 
 
-if (isset($_GET['threadid'])) {
+if (isset($_GET['threadid']) && !empty($_GET['threadid'])) {
 	$threadid = verifyparam("threadid", "/^(\d{1,9})?$/", "");
 	$lastid = -1;
 	$page['threadMessages'] = get_messages($threadid, "html", false, $lastid);

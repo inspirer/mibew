@@ -84,8 +84,10 @@ $chatthread = $page['thread'];
 
 <div class="message">
 <?php 
-	foreach( $page['threadMessages'] as $message ) {
-		echo $message;
+    if(isset($page['threadMessages']) && count($page['threadMessages']))
+	    foreach( $page['threadMessages'] as $message ) {
+		    echo $message;
+	    }
 	}
 ?>
 </div>
