@@ -507,13 +507,20 @@ var CommonUtils = {
 };
 
 function playSound(wav_file) {
+ if(!document.getElementById("incomingSound"))
+ {
   var player = document.createElement("div");
+  player.setAttribute('id', 'playSound');
   var agt = navigator.userAgent.toLowerCase();
   if(agt.indexOf('opera') != -1) {
   	player.style = "position: absolute; left: 0px; top: -200px;";
   }
   document.body.appendChild(player);
-  player.innerHTML = '<audio autoplay src="'+wav_file+'"><embed src="'+wav_file+'" hidden="true" autostart="true" loop="false"></audio>';
+  if(!document.createElement('audio').canPlayType)
+  {      player.innerHTML = '<embed id="incomingSound" name="incomingSound" src="'+wav_file+'" hidden="true" autostart="true" loop="false"></embed>'; alert('embed');}
+  else{  player.innerHTML = '<audio id="incomingSound" name="incomingSound"><source src="'+wav_file+'" type="audio/wav" /><source src="'+wav_file.substring(0,wav_file.length-3)+'mp3" type="audio/mp3" /></audio>'; alert('audio');}
+ }
+ document.getElementById('incomingSound').play();
 }
 
 function htmlescape(str) {
