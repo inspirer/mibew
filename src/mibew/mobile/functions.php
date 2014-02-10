@@ -73,11 +73,11 @@ function chat_server_status() {
 }
 
 function mobile_login($username, $password, $deviceuuid) {
-	if (isset($username) && isset($password)) {
+	if (isset($username) && isset($password) && isset($deviceuuid)) {
 		// Note: Blank passwords not currently allowed.
 		$op = operator_by_login($username);
 	
-		if (isset($op) && calculate_password_hash($username, $password) == $op['vcpassword']) {
+		if (isset($op) && check_password_hash($username, $password, $op['vcpassword'])) {
 			$oprtoken = create_operator_session($op, $deviceuuid);
 			$out = array('oprtoken' => $oprtoken,
 						 'operatorid' => $op['operatorid'],
