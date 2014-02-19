@@ -52,16 +52,19 @@ $threadstate_key = array(
 
 
 function chat_server_status() {
-	global $mysqlprefix, $version, $url;
+	global $mysqlprefix, $version, $url, $settings;
+	
+	loadmibewmobsettings();
+	
 	$link = connect();
-	
-	
 	$row = select_one_row("SELECT * FROM ${mysqlprefix}chatmibewmobserverinfo", $link);
+	mysql_close($link);
+
 	if ($row != NULL) {
-		return array('name' => $row['servername'],
+		return array('name' => $settings['title'],
 					 'URL' => $url,		// TODO: Need to infer this either from the request or during installation
 					 'version' => $version,	// TODO: This is the version as reported by mibew
-					 'logoURL' => $row['logourl'],
+					 'logoURL' => $settings['logo'],
 					 'mibewMobVersion' => $row['apiversion'],
 					 'installationid' => $row['installationid'],
 					 'propertyrevision' => (int)$row['propertyrevision'],
@@ -116,7 +119,8 @@ function mobile_logout($oprtoken) {
 			  WHERE oprtoken = '$oprtoken'";
 	
 	perform_query($query, $link);
-	
+	mysql_close($link);
+		
 	$out = array('errorCode' => ERROR_SUCCESS);
 	return $out;
 }
@@ -928,7 +932,7 @@ function get_active_visitors_notification($oprtoken, $deviceVisitors, $stealthMo
  ***********/
 function verifyparam2($name, $regexp, $default = null)
 {
-	if (isset($_GET[$name])) {
+		if (isset($_GET[$name])) {
 		$val = $_GET[$name];
 		if (preg_match($regexp, $val))
 			return $val;
@@ -947,4 +951,19 @@ function verifyparam2($name, $regexp, $default = null)
 	return false;
 }
 
+/**************
+ *	 Method:	
+ *		loadmibewmobsettings
+ * Description:
+ *		Loads mibewmob settings as well as general settings
+ * Author:
+ * 		ENsoesie 	2/17/2014	Creation
+ ***********/
+function loadmibewmobsettings()
+{
+	global $settings;
+	
+	loadsettings();
+	
+}
 ?>

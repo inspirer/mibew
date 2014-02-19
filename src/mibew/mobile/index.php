@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Author:	Eyong Nsoesie (eyong.ns@gmail.com)
+ * Author:	Eyong Nsoesie (ensoesie@scalior.com)
  * Date: 	September 3, 2013
  */
 
