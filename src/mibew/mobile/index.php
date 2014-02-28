@@ -34,8 +34,8 @@ require_once('functions.php');
 // C74BEDBF52
 
 // Log every request that comes in.
-$outfile = fopen("requestfile.txt", "a");
-$request = date('Y-d-m G:i:s {');
+$outfile = fopen("requestfile-".date('Y-m-d').".txt", "a");
+$request = date('Y-m-d G:i:s {');
 foreach($_REQUEST as $key => $value) {
 	$request .= "$key: $value, ";
 }
