@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Author:	Eyong Nsoesie (ensoesie@scalior.com)
+ * Author:	Eyong Nsoesie (eyongn@scalior.com)
  * Date: 	September 3, 2013
  */
 
@@ -30,10 +30,10 @@
 require_once('../libs/common.php');
 require_once('functions.php');
 
-// For testing
-// C74BEDBF52
-
 // Log every request that comes in.
+
+/* Uncomment this block for debugging
+
 $outfile = fopen("requestfile-".date('Y-m-d').".txt", "a");
 $request = date('Y-m-d G:i:s {');
 foreach($_REQUEST as $key => $value) {
@@ -43,6 +43,7 @@ $request .= "END}\r\n";
 
 fwrite($outfile, $request);
 fclose($outfile);
+*/
 
 
 header("Content-Type: application/json");
@@ -108,6 +109,7 @@ else if ($_GET['cmd'] == 'newmessages') {
 	echo $jsonOut;
 }
 else if ($_GET['cmd'] == 'ack-messages') {
+	// TODO: This should be a POST instead of a GET 
 	$oprtoken = $_GET['oprtoken'];
 	$msgList = $_GET['messageids'];
 	
@@ -116,6 +118,7 @@ else if ($_GET['cmd'] == 'ack-messages') {
 	echo $jsonOut;
 }
 else if ($_GET['cmd'] == 'postmessage') {
+	// TODO: This should be a POST instead of a GET 
 	$oprtoken = $_GET['oprtoken'];
 	$threadid = $_GET['threadid'];
 	$chattoken = $_GET['token'];
@@ -127,6 +130,7 @@ else if ($_GET['cmd'] == 'postmessage') {
 	echo $jsonOut;
 }
 else if ($_GET['cmd'] == 'closethread') {
+	// TODO: This should be a POST instead of a GET 
 	$oprtoken = $_GET['oprtoken'];
 	$threadid = $_GET['threadid'];
 

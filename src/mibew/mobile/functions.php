@@ -1,5 +1,24 @@
 <?php
 
+/*
+ * Copyright 2013 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Author:	Eyong Nsoesie (eyongn@scalior.com)
+ * Date: 	September 3, 2013
+ */
+ 
 require_once('../libs/common.php');
 require_once('../libs/operator.php');
 require_once('../libs/chat.php');
@@ -26,9 +45,9 @@ define('OPR_STATUS_ON',		 0);
 define('OPR_STATUS_AWAY',	 1);
 
 
-$url = "http://nsoesie.dyndns-home.com:5242/transmawfoods/webim";
-$logoURL = "http://nsoesie.dyndns-home.com:5242/transmawfoods/includes/templates/genesis/images/TFS-95.jpg";
-$mibewMobVersion = "0.1";
+$url = "";
+$logoURL = "";
+$mibewMobVersion = "";
 $serverName = "Scalior Test Server";
 
 // Todo: These two arrays are from operator/upate.php.
@@ -50,13 +69,36 @@ $threadstate_key = array(
 	$state_loading => "chat.thread.state_loading"
 );
 
+//------------------
+// Database resource bug:
+// There are times when php will return warnings/errors stating that
+// "X is not a valid MySQL-Link resource"
+// This is possibly caused by the fact that mysql_close is being called on the database handle
+// and the handle is being used subsequently. 
+// See http://stackoverflow.com/questions/2851420/warning-mysql-query-3-is-not-a-valid-mysql-link-resource 
+// To mitigate this issue, the database handle will be created in entry-point functions, and the handle passed
+// to internal functions. There will be some exceptions and I will comment them accordingly.
+//
+// EN 3/22/2014
+//---------------------------
 
+
+/***********
+ * Method:	
+ *		chat_server_status
+ * Description:
+ *	  	Determines some server status information
+ * Author:
+ * 		ENsoesie 	9/4/2013	Creation
+ *	Remarks:
+ *		Returns server settings needed by the client
+ ***********/
 function chat_server_status() {
 	global $mysqlprefix, $version, $url, $settings;
-	
-	loadmibewmobsettings();
-	
+
 	$link = connect();
+	loadmibewmobsettings($link);
+
 	$row = select_one_row("SELECT * FROM ${mysqlprefix}chatmibewmobserverinfo", $link);
 	mysql_close($link);
 
@@ -75,13 +117,25 @@ function chat_server_status() {
 	}
 }
 
+/***********
+ * Method:	
+ *		mobile_login
+ * Description:
+ *	  	Logs in the client
+ * Author:
+ * 		ENsoesie 	9/4/2013	Creation
+ ***********/
 function mobile_login($username, $password, $deviceuuid) {
 	if (isset($username) && isset($password) && isset($deviceuuid)) {
 		// Note: Blank passwords not currently allowed.
+		
+		// This function creates and closes a database connection, so if a connection is needed,
+		// open it below the function.
 		$op = operator_by_login($username);
 	
 		if (isset($op) && check_password_hash($username, $password, $op['vcpassword'])) {
-			$oprtoken = create_operator_session($op, $deviceuuid);
+			$link = connect();
+			$oprtoken = create_operator_session($op, $deviceuuid, $link);
 			$out = array('oprtoken' => $oprtoken,
 						 'operatorid' => $op['operatorid'],
 						 'localename' => $op['vclocalename'],
@@ -92,6 +146,7 @@ function mobile_login($username, $password, $deviceuuid) {
 						 'status' => $op['istatus'],
 						 'lastvisited' => $op['dtmlastvisited'],
 						 'errorCode' => ERROR_SUCCESS);
+			mysql_close($link);
 			return $out;
 		}
 	}
@@ -101,19 +156,30 @@ function mobile_login($username, $password, $deviceuuid) {
 	return $out;
 }
 
+
+/***********
+ * Method:	
+ *		mobile_logout
+ * Description:
+ *	  	Logs out the client
+ * Author:
+ * 		ENsoesie 	9/4/2013	Creation
+ ***********/
 function mobile_logout($oprtoken) {
-	$oprSession = operator_from_token($oprtoken);
+	global $mysqlprefix;
+
+	$link = connect();
+
+	$oprSession = operator_from_token($oprtoken, $link);
 	$operatorId = $oprSession['operatorid'];
 
 	if ($operatorId == NULL) {
 		return array('errorCode' => ERROR_INVALID_OPR_TOKEN);
 	}
 
-	$operator = operator_by_id($operatorId);
+	$operator = operator_by_id_($operatorId, $link);
 	
-	global $mysqlprefix;
-	$link = connect();
-	
+		
 	$query = "UPDATE ${mysqlprefix}chatoperatorsession 
 			  SET inprogress = 0, dtmexpires = CURRENT_TIMESTAMP
 			  WHERE oprtoken = '$oprtoken'";
@@ -125,10 +191,17 @@ function mobile_logout($oprtoken) {
 	return $out;
 }
 
-function create_operator_session($op, $deviceuuid) {
+/***********
+ * Method:	
+ *		create_operator_session
+ * Description:
+ *	  	Create a session for the operator if this is the first time they
+ *		are logging in with that device. Otherwise returns the existing token
+ * Author:
+ * 		ENsoesie 	9/4/2013	Creation
+ ***********/
+function create_operator_session($op, $deviceuuid, $link) {
 	global $mysqlprefix;
-	$link = connect();
-	
 	
 	$row = select_one_row("SELECT deviceid FROM ${mysqlprefix}chatdevices " . 
 						  "WHERE clientdeviceid = '$deviceuuid'", $link);
@@ -143,7 +216,6 @@ function create_operator_session($op, $deviceuuid) {
 	}
 
 	if ($loggedInOp != NULL) {
-		mysql_close($link);
 		return $loggedInOp['oprtoken'];
 	}
 	
@@ -164,39 +236,7 @@ function create_operator_session($op, $deviceuuid) {
 			 "(" . $op['operatorid'] . ", '$oprtoken', $deviceid)";
 	perform_query($query, $link);
 
-	mysql_close($link);
-	
 	return $oprtoken;
-}
-
-
-/***********
- * Method:	
- *		get_active_visitors
- * Description:
- *	  	Returns a list of active visitors.
- *	  	i.e, those that are waiting for an operator as well as
- *	    those who already have a chat in session
- * Author:
- * 		ENsoesie 	9/4/2013	Creation
- ***********/
-function get_active_visitors($oprtoken, $deviceVisitors, $stealthMode) {
-	$oprSession = operator_from_token($oprtoken);
-	$operatorId = $oprSession['operatorid'];
-	$deviceid = $oprSession['deviceid'];
-
-	if ($operatorId != NULL) {
-		$out = get_pending_threads($deviceVisitors, $deviceid);
-		$out['errorCode'] = ERROR_SUCCESS;
-		if (!$stealthMode) {
-			notify_operator_alive($operatorId, OPR_STATUS_ON);
-		}
-	}
-	else {
-		$out = array('errorCode' => ERROR_INVALID_OPR_TOKEN);
-	}
-	
-	return $out;
 }
 
 
@@ -209,18 +249,48 @@ function get_active_visitors($oprtoken, $deviceVisitors, $stealthMode) {
  * Author:
  * 		ENsoesie 	9/4/2013	Creation
  ***********/
-function operator_from_token($oprtoken) {
+function operator_from_token($oprtoken, $link) {
 	global $mysqlprefix;
-	$link = connect();
 	
 	$query = "SELECT operatorid, deviceid FROM ${mysqlprefix}chatoperatorsession " .
 			 "WHERE oprtoken = '$oprtoken'";
 	$row = select_one_row($query, $link);
-	
-	mysql_close($link);
-	
+
 	return $row;
 }
+
+/***********
+ * Method:	
+ *		get_active_visitors
+ * Description:
+ *	  	Returns a list of active visitors.
+ *	  	i.e, those that are waiting for an operator as well as
+ *	    those who already have a chat in session
+ * Author:
+ * 		ENsoesie 	9/4/2013	Creation
+ ***********/
+function get_active_visitors($oprtoken, $deviceVisitors, $stealthMode) {
+	$link = connect();
+
+	$oprSession = operator_from_token($oprtoken, $link);
+	$operatorId = $oprSession['operatorid'];
+	$deviceid = $oprSession['deviceid'];
+
+	if ($operatorId != NULL) {
+		$out = get_pending_threads($deviceVisitors, $deviceid, $link);
+		$out['errorCode'] = ERROR_SUCCESS;
+		if (!$stealthMode) {
+			notify_operator_alive2($operatorId, OPR_STATUS_ON, $link);
+		}
+	}
+	else {
+		$out = array('errorCode' => ERROR_INVALID_OPR_TOKEN);
+	}
+
+	mysql_close($link);	
+	return $out;
+}
+
 
 /***********
  * Method:	
@@ -231,10 +301,9 @@ function operator_from_token($oprtoken) {
  * Author:
  * 		ENsoesie 	9/4/2013	Creation
  ***********/
-function get_pending_threads($deviceVisitors, $deviceid)
+function get_pending_threads($deviceVisitors, $deviceid, $link)
 {
 	global $webim_encoding, $settings, $state_closed, $state_left, $mysqlprefix;
-	$link = connect();
 
 	$output = array();
 	$query = "select threadid, userName, agentName, unix_timestamp(dtmcreated), userTyping, " .
@@ -260,8 +329,6 @@ function get_pending_threads($deviceVisitors, $deviceid)
 				 "where deviceid = $deviceid and threadid in ($deviceVisitorCommaSepList) " .
 				 "order by threadid desc";
 		
-		// SECURITY ALERT: We are using $deviceVisitors as provided in the request. There is a 
-		// potential of sql injection here.
 		$syncedthreads = select_multi_assoc($query, $link);
 		
 		
@@ -290,7 +357,7 @@ function get_pending_threads($deviceVisitors, $deviceid)
 											'state' => $row['istate'],
 											'agentid' => $row['agentId']);
 							if ($row['shownmessageid'] != 0) {
-								$thread['message'] = get_sanitized_message($row['shownmessageid']);
+								$thread['message'] = get_sanitized_message($row['shownmessageid'], $link);
 								$thread['shownmessageid'] = $row['shownmessageid'];
 							}
 							$threadList[] = $thread;
@@ -318,7 +385,6 @@ function get_pending_threads($deviceVisitors, $deviceid)
 	if (($output['threadCount'] = count($threadList))> 0) {
 		$output['threadList'] = $threadList;
 
-		$newlink = connect();
 		foreach ($output['threadList'] as $listItem) {
 			$query = "INSERT INTO ${mysqlprefix}chatsyncedthreads " .
 					 "(threadid, deviceid, state, shownmessageid, agentid) VALUES (" .
@@ -329,11 +395,9 @@ function get_pending_threads($deviceVisitors, $deviceid)
 					 (isset($listItem['shownmessageid']) ? $listItem['shownmessageid'] : '0') . ", agentid = " .
 					 (isset($listItem['agentid']) ? $listItem['agentid'] : '0') . ";";
 					 
-			perform_query($query, $newlink);
+			perform_query($query, $link);
 		}
-		mysql_close($newlink);
 	}
-	// mysql_close($link);
 	return $output;
 
 /*		if (count($threadListInsert) > 0) {
@@ -382,6 +446,15 @@ function get_pending_threads($deviceVisitors, $deviceid)
 
 }
 
+/***********
+ * Method:	
+ *		thread_to_array
+ * Description:
+ *	  	This is just like thread_to_xml from operator/update.php, 
+ * 		except that the output is an array, with mobile friendly data
+ * Author:
+ * 		ENsoesie 	9/4/2013	Creation
+ ***********/
 function thread_to_array($thread, $link)
 {
 	global $state_chatting, $threadstate_to_string, $threadstate_key,
@@ -430,7 +503,7 @@ $can_viewthreads, $can_takeover, $mysqlprefix;
 	if ($banForThread) {
 		$name = htmlspecialchars(getstring('chat.client.spam.prefix'));
 	}
-	$name .= htmlspecialchars(htmlspecialchars(get_user_name($thread['userName'], $thread['remote'], $thread['userid'])));
+	$name .= htmlspecialchars(htmlspecialchars(get_user_name2($thread['userName'], $thread['remote'], $thread['userid'], $link)));
 	
 	$result['name'] = $name;
 	
@@ -448,7 +521,7 @@ $can_viewthreads, $can_takeover, $mysqlprefix;
 	$result['useragent'] = $userAgent;
 
 	if ($thread["shownmessageid"] != 0) {
-		$line = get_sanitized_message($thread['shownmessageid']);
+		$line = get_sanitized_message($thread['shownmessageid'], $link);
 		if ($line) {
 			$result['message'] = $line;
 			$result['shownmessageid'] = $thread['shownmessageid'];
@@ -468,18 +541,16 @@ $can_viewthreads, $can_takeover, $mysqlprefix;
  * Author:
  * 		ENsoesie 	11/27/2013	Creation
  ***********/
-function get_sanitized_message($messageid) {
+function get_sanitized_message($messageid, $link) {
 	global $mysqlprefix;
 	if ($messageid != 0) {
 		$query = "select tmessage from ${mysqlprefix}chatmessage where messageid = $messageid";
 		
-		$link = connect();
 		$line = select_one_row($query, $link);
-		mysql_close($link);
 
 		if ($line) {
-			$message = preg_replace("/[\r\n\t]+/", " ", $line["tmessage"]);
-			$result = htmlspecialchars(htmlspecialchars($message));
+			$result = preg_replace("/[\r\n\t]+/", " ", $line["tmessage"]);
+			//$result = htmlspecialchars(htmlspecialchars($message));
 		}
 	}
 	
@@ -498,24 +569,28 @@ function get_sanitized_message($messageid) {
  ***********/
 function start_chat($oprtoken, $threadid) {
 	global $state_chatting, $state_closed;
+	$link = connect();
 	
-	$oprSession = operator_from_token($oprtoken);
+	$oprSession = operator_from_token($oprtoken, $link);
 	$operatorId = $oprSession['operatorid'];
 
 	if ($operatorId == NULL) {
+		mysql_close($link);
 		return array('errorCode' => ERROR_INVALID_OPR_TOKEN);
 	}
 
-	$operator = operator_by_id($operatorId);
+	$operator = operator_by_id_($operatorId, $link);
 	$chattoken = $_GET['token'];
 
-	$thread = thread_by_id($threadid);
+	$thread = thread_by_id_($threadid, $link);
 	if (!$thread || !isset($thread['ltoken'])) {
+		mysql_close($link);
 		return array('errorCode' => ERROR_INVALID_THREAD);
 	}
 
 	// If the thread is already closed, then return error indicating so.
 	if ($thread['istate'] == $state_closed) {
+		mysql_close($link);
 		return array('errorCode' => ERROR_THREAD_CLOSED);
 	}
 	
@@ -528,6 +603,7 @@ function start_chat($oprtoken, $threadid) {
 			$operator['operatorid'] != $thread['agentId']) {
 			
 			if (!is_capable($can_takeover, $operator)) {
+				mysql_close($link);
 				return array('errorCode' => ERROR_CANT_TAKEOVER);
 			}
 			
@@ -535,13 +611,17 @@ function start_chat($oprtoken, $threadid) {
 				// Todo. Confirm that you want to force the takeover of the conversation
 				// 1 month later and I'm not sure what this should do. This is a potential
 				// bug that needs to be reviewed.
+				// Update: On the web, there is a prompt for user to confirm takeover.
+				//			Need to implement similar prompt in app
+				mysql_close($link);
 				return array('errorCode' => ERROR_CONFIRM_TAKEOVER);
 			}
 		}
 
 		if (!$viewonly) {
-			take_thread($thread, $operator);
+			take_thread2($thread, $operator, $link);
 		} else if (!is_capable($can_viewthreads, $operator)) {
+			mysql_close($link);
 			return array('errorCode' => ERROR_CANT_VIEW_THREAD);
 		}
 		
@@ -550,17 +630,21 @@ function start_chat($oprtoken, $threadid) {
 
 	// Chat token may be different if token was supplied from the http request
 	if ($chattoken != $thread['ltoken']) {
+		mysql_close($link);
 		return array('errorCode' => ERROR_WRONG_THREAD);
 	}
 	
 	if ($thread['agentId'] != $operator['operatorid'] && 
 		!is_capable($can_viewthreads, $operator)) {
+		mysql_close($link);
 		return array('errorCode' => ERROR_CANT_VIEW_THREAD);
 	}
 	
 	$out = array('errorCode' => ERROR_SUCCESS,
 				 'threadid' => $threadid,
 				 'chattoken' => $chattoken);
+
+	mysql_close($link);
 	return $out;
 }
 
@@ -573,29 +657,33 @@ function start_chat($oprtoken, $threadid) {
  * 		ENsoesie 	9/7/2013	Creation
  ***********/
 function get_new_messages($oprtoken, $threadid, $chattoken, $istyping) {
-	$oprSession = operator_from_token($oprtoken);
+	$link = connect();
+	$oprSession = operator_from_token($oprtoken, $link);
 	$operatorId = $oprSession['operatorid'];
 	$deviceid = $oprSession['deviceid'];
 
 	if ($operatorId == NULL) {
+		mysql_close($link);
 		return array('errorCode' => ERROR_INVALID_OPR_TOKEN);
 	}
 
-	$operator = operator_by_id($operatorId);
-	$thread = thread_by_id($threadid);
+	$operator = operator_by_id_($operatorId, $link);
+	$thread = thread_by_id_($threadid, $link);
 	if (!$thread || !isset($thread['ltoken'])) {
+		mysql_close($link);
 		return array('errorCode' => ERROR_INVALID_THREAD);
 	}
 	
 	if ($chattoken != $thread['ltoken']) {
+		mysql_close($link);
 		return array('errorCode' => ERROR_INVALID_CHAT_TOKEN);
 	}
 	
-	ping_thread($thread, false, $istyping);
-	check_for_reassign($thread, $operator);
+	ping_thread2($thread, false, $istyping, $link);
+	check_for_reassign2($thread, $operator, $link);
 
 	
-	return get_unsynced_messages($threadid, $deviceid);
+	return get_unsynced_messages($threadid, $deviceid, $link);
 }
 
 /***********
@@ -607,9 +695,8 @@ function get_new_messages($oprtoken, $threadid, $chattoken, $istyping) {
  * Author:
  * 		ENsoesie 	9/7/2013	Creation
  ***********/
-function get_unsynced_messages($threadid, $deviceid) {
+function get_unsynced_messages($threadid, $deviceid, $link) {
 	global $mysqlprefix;
-	$link = connect();
 
 	$query = "select messageid, tmessage, unix_timestamp(dtmcreated) as timestamp, threadid, 
 			  agentId, tname, ikind 
@@ -621,8 +708,6 @@ function get_unsynced_messages($threadid, $deviceid) {
 				and csm.deviceid = $deviceid)";
 	
 	$rows = select_multi_assoc($query, $link);
-
-	mysql_close($link);
 
 	$out = array('errorCode' => ERROR_SUCCESS);
 				 
@@ -652,21 +737,25 @@ function get_unsynced_messages($threadid, $deviceid) {
  ***********/
 function msg_from_mobile_op($oprtoken, $threadid, $chattoken, $opMsgIdL, $opMsg) {
 	global $mysqlprefix;
-	$oprSession = operator_from_token($oprtoken);
+	$link = connect();
+	$oprSession = operator_from_token($oprtoken, $link);
 	$operatorId = $oprSession['operatorid'];
 	$deviceid = $oprSession['deviceid'];
 
 	if ($operatorId == NULL) {
+		mysql_close($link);
 		return array('errorCode' => ERROR_INVALID_OPR_TOKEN);
 	}
 
-	$operator = operator_by_id($operatorId);
-	$thread = thread_by_id($threadid);
+	$operator = operator_by_id_($operatorId, $link);
+	$thread = thread_by_id_($threadid, $link);
 	if (!$thread || !isset($thread['ltoken'])) {
+		mysql_close($link);
 		return array('errorCode' => ERROR_INVALID_THREAD);
 	}
 	
 	if ($chattoken != $thread['ltoken']) {
+		mysql_close($link);
 		return array('errorCode' => ERROR_INVALID_CHAT_TOKEN);
 	}
 
@@ -679,13 +768,13 @@ function msg_from_mobile_op($oprtoken, $threadid, $chattoken, $opMsgIdL, $opMsg)
 
 
 	// 1 - Check if it is in the devicemessages table
-	$link = connect();
 	$result = select_one_row("select messageid, unix_timestamp(msgtimestamp)
 							 from ${mysqlprefix}chatmessagesfromdevice
 							 where deviceid = $deviceid and devicemessageid = $opMsgIdL", $link);
 	
 	// 2 - If so, send back the devicemessageid, messageid, timestamp, then done
 	if ($result != NULL) {
+		mysql_close($link);
 		return array('errorCode' => ERROR_SUCCESS,
 					 'messageidr' => $result['messageid'],
 					 'messageidl' => $opMsgIdL,
@@ -736,7 +825,8 @@ function msg_from_mobile_op($oprtoken, $threadid, $chattoken, $opMsgIdL, $opMsg)
  ***********/
 function ack_messages($oprtoken, $msgList) {
 	global $mysqlprefix;
-	$oprSession = operator_from_token($oprtoken);
+	$link = connect();
+	$oprSession = operator_from_token($oprtoken, $link);
 	$operatorId = $oprSession['operatorid'];
 	$deviceid = $oprSession['deviceid'];
 
@@ -760,7 +850,6 @@ function ack_messages($oprtoken, $msgList) {
 	$query = "INSERT INTO ${mysqlprefix}chatsyncedmessages (messageid, deviceid) VALUES ";
 	$query.= $data;
 	
-	$link = connect();
 	perform_query($query, $link);
 	mysql_close($link);
 
@@ -776,17 +865,24 @@ function ack_messages($oprtoken, $msgList) {
  * 		ENsoesie 	11/13/2013	Creation
  ***********/
 function close_thread_mobile($oprtoken, $threadid) {
-	$oprSession = operator_from_token($oprtoken);
+	$link = connect();
+	$oprSession = operator_from_token($oprtoken, $link);
 	$operatorId = $oprSession['operatorid'];
 
 	if ($operatorId == NULL) {
+		mysql_close($link);
 		return array('errorCode' => ERROR_INVALID_OPR_TOKEN);
 	}
 
-	$thread = thread_by_id($threadid);
+	$thread = thread_by_id_($threadid, $link);
 	if (!$thread || !isset($thread['ltoken'])) {
+		mysql_close($link);
 		return array('errorCode' => ERROR_INVALID_THREAD);
 	}
+	
+	// close_thread() below opens and closes a database connection. This is fine as we don't 
+	// do anything with the connection beyond this point
+	mysql_close($link);
 	
 	close_thread($thread, false);
 	
@@ -836,7 +932,9 @@ function batch_op_messages($oprtoken, $oprtoken, $opMessages) {
 function get_active_visitors_notification($oprtoken, $deviceVisitors, $stealthMode) {
 	global $webim_encoding, $settings, $state_closed, $state_left, $mysqlprefix;
 	
-	$oprSession = operator_from_token($oprtoken);
+	$link = connect();
+	
+	$oprSession = operator_from_token($oprtoken, $link);
 	$operatorId = $oprSession['operatorid'];
 	$deviceid = $oprSession['deviceid'];
 	
@@ -844,11 +942,9 @@ function get_active_visitors_notification($oprtoken, $deviceVisitors, $stealthMo
 
 	if ($operatorId != NULL) {
 		if (!$stealthMode) {
-			notify_operator_alive($operatorId, OPR_STATUS_ON);
+			notify_operator_alive2($operatorId, OPR_STATUS_ON, $link);
 		}
 		
-		$link = connect();
-	
 		$output = array();
 		$query = "select threadid, istate, shownmessageid " .
 				 "from ${mysqlprefix}chatthread where istate <> $state_closed AND istate <> $state_left ";
@@ -906,14 +1002,14 @@ function get_active_visitors_notification($oprtoken, $deviceVisitors, $stealthMo
 			$hasVisitorChange = true;
 		}
 	
-		mysql_close($link);
-
 		$out = array('errorCode' => ERROR_SUCCESS,
 					 'hasvisitorchange' => $hasVisitorChange);
 	}
 	else {
 		$out = array('errorCode' => ERROR_INVALID_OPR_TOKEN);
 	}
+
+	mysql_close($link);
 
 	return $out;
 }
@@ -951,6 +1047,7 @@ function verifyparam2($name, $regexp, $default = null)
 	return false;
 }
 
+
 /**************
  *	 Method:	
  *		loadmibewmobsettings
@@ -959,11 +1056,200 @@ function verifyparam2($name, $regexp, $default = null)
  * Author:
  * 		ENsoesie 	2/17/2014	Creation
  ***********/
-function loadmibewmobsettings()
+function loadmibewmobsettings($link)
 {
 	global $settings;
 	
-	loadsettings();
+	loadsettings_($link);
 	
 }
+
+
+/**************
+ *	 Method:	
+ *		get_user_name2
+ * Description:
+ *	  	Gets the chat user's username given the username pattern 
+ * Author:
+ * 		ENsoesie 	3/22/2014	Creation
+ * Remark: 
+ *		Borrowed from "chat.php", with loadsettings that takes a database handle. 
+ * 		See the comment up top about the database resource bug.
+ ***********/
+function get_user_name2($username, $addr, $id, $link)
+{
+	global $settings;
+	loadmibewmobsettings($link);
+	return str_replace("{addr}", $addr,
+					   str_replace("{id}", $id,
+								   str_replace("{name}", $username, $settings['usernamepattern'])));
+}
+
+/**************
+ *	 Method:	
+ *		ping_thread2
+ * Description:
+ *	  	Lets the operator ping the thread 
+ * Author:
+ * 		ENsoesie 	3/22/2014	Creation
+ * Remark: 
+ *		Borrowed from "chat.php", letting it use the already created database handle. 
+ * 		See the comment up top about the database resource bug.
+ ***********/
+function ping_thread2($thread, $isuser, $istyping, $link)
+{
+	global $kind_for_agent, $state_queue, $state_loading, $state_chatting, $state_waiting, $kind_conn, $connection_timeout;
+	$params = array(($isuser ? "lastpinguser" : "lastpingagent") => "CURRENT_TIMESTAMP",
+					($isuser ? "userTyping" : "agentTyping") => ($istyping ? "1" : "0"));
+
+	$lastping = $thread[$isuser ? "lpagent" : "lpuser"];
+	$current = $thread['current'];
+
+	if ($thread['istate'] == $state_loading && $isuser) {
+		$params['istate'] = intval($state_queue);
+		commit_thread($thread['threadid'], $params, $link);
+		return;
+	}
+
+	if ($lastping > 0 && abs($current - $lastping) > $connection_timeout) {
+		$params[$isuser ? "lastpingagent" : "lastpinguser"] = "0";
+		if (!$isuser) {
+			$message_to_post = getstring_("chat.status.user.dead", $thread['locale']);
+			post_message_($thread['threadid'], $kind_for_agent, $message_to_post, $link, null, $lastping + $connection_timeout);
+		} else if ($thread['istate'] == $state_chatting) {
+
+			$message_to_post = getstring_("chat.status.operator.dead", $thread['locale']);
+			post_message_($thread['threadid'], $kind_conn, $message_to_post, $link, null, $lastping + $connection_timeout);
+			$params['istate'] = intval($state_waiting);
+			$params['nextagent'] = 0;
+			commit_thread($thread['threadid'], $params, $link);
+			return;
+		}
+	}
+
+	update_thread_access($thread['threadid'], $params, $link);
+}
+
+
+/**************
+ *	 Method:	
+ *		check_for_reassign2
+ * Description:
+ *	  	Checks whether re-assigning the thread to this user has been initiated. 
+ * Author:
+ * 		ENsoesie 	3/22/2014	Creation
+ * Remark: 
+ *		Borrowed from "chat.php", letting it use the already created database handle. 
+ * 		See the comment up top about the database resource bug.
+ ***********/
+function check_for_reassign2($thread, $operator, $link)
+{
+	global $state_waiting, $home_locale, $kind_events, $kind_avatar;
+	$operatorName = ($thread['locale'] == $home_locale) ? $operator['vclocalename'] : $operator['vccommonname'];
+	if ($thread['istate'] == $state_waiting &&
+		($thread['nextagent'] == $operator['operatorid']
+		 || $thread['agentId'] == $operator['operatorid'])) {
+		do_take_thread2($thread['threadid'], $operator['operatorid'], $operatorName, $link);
+		if ($operatorName != $thread['agentName']) {
+			$message_to_post = getstring2_("chat.status.operator.changed", array($operatorName, $thread['agentName']), $thread['locale'], true);
+		} else {
+			$message_to_post = getstring2_("chat.status.operator.returned", array($operatorName), $thread['locale'], true);
+		}
+
+		post_message_($thread['threadid'], $kind_events, $message_to_post, $link);
+		post_message_($thread['threadid'], $kind_avatar, $operator['vcavatar'] ? $operator['vcavatar'] : "", $link);
+	}
+}
+
+
+/**************
+ *	 Method:	
+ *		do_take_thread2
+ * Description:
+ *	  	Takes over the thread. 
+ * Author:
+ * 		ENsoesie 	3/22/2014	Creation
+ * Remark: 
+ *		Borrowed from "chat.php", letting it use the already created database handle. 
+ * 		See the comment up top about the database resource bug.
+ ***********/
+function do_take_thread2($threadid, $operatorId, $operatorName, $link)
+{
+	global $state_chatting;
+	commit_thread($threadid,
+				  array("istate" => intval($state_chatting),
+					   "nextagent" => 0,
+					   "agentId" => intval($operatorId),
+					   "agentName" => "'" . mysql_real_escape_string($operatorName, $link) . "'"), $link);
+}
+
+/**************
+ *	 Method:	
+ *		notify_operator_alive2
+ * Description:
+ *	  	Notify that the operator is still online, like a ping. 
+ * Author:
+ * 		ENsoesie 	3/22/2014	Creation
+ * Remark: 
+ *		Borrowed from "operator.php", letting it use the already created database handle. 
+ * 		See the comment up top about the database resource bug.
+ ***********/
+function notify_operator_alive2($operatorid, $istatus, $link)
+{
+	global $mysqlprefix;
+	perform_query(sprintf("update ${mysqlprefix}chatoperator set istatus = %s, dtmlastvisited = CURRENT_TIMESTAMP where operatorid = %s", intval($istatus), intval($operatorid)), $link);
+}
+
+
+/**************
+ *	 Method:	
+ *		take_thread2
+ * Description:
+ *	  	Let this operator take over the thread. 
+ * Author:
+ * 		ENsoesie 	3/22/2014	Creation
+ * Remark: 
+ *		Borrowed from "chat.php", letting it use the already created database handle. 
+ * 		See the comment up top about the database resource bug.
+ ***********/
+function take_thread2($thread, $operator, $link)
+{
+	global $state_queue, $state_loading, $state_waiting, $state_chatting, $kind_events, $kind_avatar, $home_locale;
+
+	$state = $thread['istate'];
+	$threadid = $thread['threadid'];
+	$message_to_post = "";
+
+	$operatorName = ($thread['locale'] == $home_locale) ? $operator['vclocalename'] : $operator['vccommonname'];
+
+	if ($state == $state_queue || $state == $state_waiting || $state == $state_loading) {
+		do_take_thread2($threadid, $operator['operatorid'], $operatorName, $link);
+
+		if ($state == $state_waiting) {
+			if ($operatorName != $thread['agentName']) {
+				$message_to_post = getstring2_("chat.status.operator.changed", array($operatorName, $thread['agentName']), $thread['locale'], true);
+			} else {
+				$message_to_post = getstring2_("chat.status.operator.returned", array($operatorName), $thread['locale'], true);
+			}
+		} else {
+			$message_to_post = getstring2_("chat.status.operator.joined", array($operatorName), $thread['locale'], true);
+		}
+	} else if ($state == $state_chatting) {
+		if ($operator['operatorid'] != $thread['agentId']) {
+			do_take_thread2($threadid, $operator['operatorid'], $operatorName, $link);
+			$message_to_post = getstring2_("chat.status.operator.changed", array($operatorName, $thread['agentName']), $thread['locale'], true);
+		}
+	} else {
+		// DEBUG: This should be an error code and not a die
+		die("cannot take thread");
+	}
+
+	if ($message_to_post) {
+		post_message_($threadid, $kind_events, $message_to_post, $link);
+		post_message_($threadid, $kind_avatar, $operator['vcavatar'] ? $operator['vcavatar'] : "", $link);
+	}
+}
+
+
+
 ?>
