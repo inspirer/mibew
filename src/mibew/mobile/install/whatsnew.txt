@@ -1,7 +1,10 @@
   MibewMob Server Extenstion 
   
+  1.0.1-beta
+  -----
+  [!] Re-organized the way the database handle is created and closed, to deal with an 'invalid MySQL resource' issue
+  
   1.0.0
   -----
   [!] Using 1.6.9 as the baseline
   [+] Installation of all files and tables needed
-  
