@@ -15,14 +15,16 @@
  * limitations under the License.
  */
 
-// Prevent Mibew from access to files outside the installation
-@ini_set('open_basedir', dirname(dirname(__FILE__)));
-
 require_once(dirname(__FILE__) . '/converter.php');
 require_once(dirname(__FILE__) . '/config.php');
 
+if (isset($use_open_basedir_protection) && $use_open_basedir_protection) {
+// Prevent Mibew from access to files outside the installation
+    @ini_set('open_basedir', dirname(dirname(__FILE__)));
+}
+
 // Sanitize path to application and remove extra slashes
-$mibewroot = join("/", array_map("urlencode", preg_split('/\//', preg_replace('/\/+$/', '', preg_replace('/\/{2,}/', '/', '/' . $mibewroot)))));
+$mibewroot = join("/", array_map("rawurlencode", preg_split('/\//', preg_replace('/\/+$/', '', preg_replace('/\/{2,}/', '/', '/' . $mibewroot)))));
 
 // Sanitize database tables prefix
 $mysqlprefix = preg_replace('/[^A-Za-z0-9_$]/', '', $mysqlprefix);
@@ -33,8 +35,8 @@ $home_locale = locale_pattern_check($home_locale) && locale_exists($home_locale)
 
 $locale_cookie_name = 'mibew_locale';
 
-$version = '1.6.9';
-$jsver = "169";
+$version = '1.6.10';
+$jsver = "1610";
 
 // Make session cookie more secure
 @ini_set('session.cookie_httponly', TRUE);
@@ -631,7 +633,7 @@ function date_to_text($unixtime)
 	return strftime($date_format . " " . getlocal("time.timeformat"), $unixtime);
 }
 
-$dbversion = '1.6.6';
+$dbversion = '1.6.10';
 $featuresversion = '1.6.6';
 
 $settings = array(
@@ -675,6 +677,13 @@ $settings = array(
 	'updatefrequency_oldchat' => 7,
 );
 $settingsloaded = false;
+
+// List of low level settings that can't be changed from the UI
+$low_level_settings = array(
+    'left_messages_locale',
+    'max_uploaded_file_size'
+);
+
 $settings_in_db = array();
 
 function loadsettings_($link)
@@ -850,7 +859,7 @@ function sanitize_reg_escape($string)
 
 function safe_htmlspecialchars($string)
 {
-	$string = preg_replace('/[\x00-\x08\x10-\x1f]/', '', $string);
+	$string = preg_replace('/[\x00-\x08\x10-\x1f\x0b]/', '', $string);
 	return htmlspecialchars($string, ENT_QUOTES);
 }
 
