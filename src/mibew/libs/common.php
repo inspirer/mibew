@@ -35,8 +35,8 @@ $home_locale = locale_pattern_check($home_locale) && locale_exists($home_locale)
 
 $locale_cookie_name = 'mibew_locale';
 
-$version = '1.6.10';
-$jsver = "1610";
+$version = '1.6.12';
+$jsver = "1612";
 
 // Make session cookie more secure
 @ini_set('session.cookie_httponly', TRUE);
@@ -859,7 +859,7 @@ function sanitize_reg_escape($string)
 
 function safe_htmlspecialchars($string)
 {
-	$string = preg_replace('/[\x00-\x08\x10-\x1f\x0b]/', '', $string);
+	$string = preg_replace('/[\x00-\x08\x0b\x0c\x0e-\x1f]/', '', $string);
 	return htmlspecialchars($string, ENT_QUOTES);
 }
 
