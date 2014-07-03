@@ -48,8 +48,17 @@ fclose($outfile);
 
 header("Content-Type: application/json");
 
+$g_clientAPIVer = $_REQUEST['apiver'];
+
+// If the api value is outside of the support values, return an error
+if ($g_clientAPIVer != null && 
+	($g_clientAPIVer < 1002 || $g_clientAPIVer > 1002)) {
+	$out = invalid_apiversion();
+	$jsonOut = json_encode($out);
+	echo $jsonOut;
+}
 // Mobile client command processor
-if ($_GET['cmd'] == 'isalive') {
+else if ($_GET['cmd'] == 'isalive') {
 	$out = chat_server_status();
 	$jsonOut = json_encode($out);
 	echo $jsonOut;
@@ -117,6 +126,9 @@ else if ($_GET['cmd'] == 'ack-messages') {
 	$jsonOut = json_encode($out);
 	echo $jsonOut;
 }
+// This is for old clients and will be deprecated.
+// API 1002 and above have this being POSTed as a JSON string.
+// See below
 else if ($_GET['cmd'] == 'postmessage') {
 	// TODO: This should be a POST instead of a GET 
 	$oprtoken = $_GET['oprtoken'];
@@ -129,12 +141,21 @@ else if ($_GET['cmd'] == 'postmessage') {
 	$jsonOut = json_encode($out);
 	echo $jsonOut;
 }
+// This is for old clients and will be deprecated.
+// API 1002 and above have this being POSTed as a JSON string.
+// See below
 else if ($_GET['cmd'] == 'closethread') {
-	// TODO: This should be a POST instead of a GET 
 	$oprtoken = $_GET['oprtoken'];
 	$threadid = $_GET['threadid'];
 
 	$out = close_thread_mobile($oprtoken, $threadid);
+	$jsonOut = json_encode($out);
+	echo $jsonOut;
+}
+else if($_GET['cmd'] == 'syncserveroperator') {
+	$oprtoken = $_GET['oprtoken'];
+
+	$out = sync_server_and_operator_details($oprtoken);
 	$jsonOut = json_encode($out);
 	echo $jsonOut;
 }
@@ -156,8 +177,36 @@ else if ($_GET['cmd'] == 'closethread') {
 
 else
 {
-	$out = invalid_command();
-	$jsonOut = json_encode($out);
-	echo $jsonOut;
+	// This may be JSON data that is POSTed. Try to parse it as such.
+	$input = json_decode(file_get_contents('php://input'), true);
+	if ($input != null) {
+		if ($input['cmd'] == 'postmessage') {
+			$oprtoken = $input['oprtoken'];
+			$threadid = $input['threadid'];
+			$chattoken = $input['token'];
+			$opMsgIdL = $input['messageidl'];
+			$opMsg = $input['message'];
+			
+			$out = msg_from_mobile_op($oprtoken, $threadid, $chattoken, $opMsgIdL, $opMsg);
+			$jsonOut = json_encode($out);
+			echo $jsonOut;
+		} else if ($input['cmd'] == 'closethread') {
+			$oprtoken = $input['oprtoken'];
+			$threadid = $input['threadid'];
+		
+			$out = close_thread_mobile($oprtoken, $threadid);
+			$jsonOut = json_encode($out);
+			echo $jsonOut;
+		} else {
+			$out = invalid_command();
+			$jsonOut = json_encode($out);
+			echo $jsonOut;
+		}
+		
+	} else {
+		$out = invalid_command();
+		$jsonOut = json_encode($out);
+		echo $jsonOut;
+	}
 }
 ?>

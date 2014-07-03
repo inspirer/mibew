@@ -28,6 +28,10 @@ chdir($cwd);
 
 require_once('dbinfo.php');
 
+// API VERSION
+define('SCLRMM_APIVERSION', '1002');
+define('SCLRMM_DBVERSION', '1002');
+
 $page = array(
 	'version' => $version,
 	'localeLinks' => get_locale_links("$mibewroot/install/index.php")
@@ -265,7 +269,7 @@ function check_admin($link)
 
 function check_status()
 {
-	global $page, $mibewroot, $settings, $dbversion;
+	global $page, $mibewroot, $settings, $mysqlprefix;
 
 	$page['done'][] = getlocal2("install.0.php", array(phpversion()));
 
@@ -308,11 +312,23 @@ function check_status()
 	}
 
 	$page['show_small_login'] = true;
-
+	
+	// If this is an upgrade to API 1002 or above, copy the installation id from the 
+	// chatmibewmobserverinfo table to the settigns
+	$row = select_one_row("SELECT * FROM ${mysqlprefix}chatmibewmobserverinfo", $link);
 	mysql_close($link);
 
+	$inst_id = $row['installationid'];
+	if ($inst_id == null) {
+		$inst_id = strtoupper(sha1(time()));
+	}
+	
 	loadsettings();
-	$settings['dbversion'] = $dbversion;
+	if (!isset($settings['sclrmm_installationid'])) {
+		$settings['sclrmm_installationid'] = $inst_id;
+	}
+	$settings['sclrmm_apiversion'] = SCLRMM_APIVERSION;
+	$settings['sclrmm_dbversion'] = SCLRMM_DBVERSION;
 	update_settings();
 }
 

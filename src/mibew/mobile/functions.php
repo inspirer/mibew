@@ -38,6 +38,7 @@ define('ERROR_INVALID_CHAT_TOKEN',	 8);
 define('ERROR_INVALID_COMMAND',		 9);
 define('ERROR_UNKNOWN',				10);
 define('ERROR_THREAD_CLOSED',		11);
+define('ERROR_INVALID_API_VERSION',	12);
 
 // Operator status codes. From inspection I can see that these are currently
 // implied as 0 for availabe, 1 for away
@@ -92,29 +93,43 @@ $threadstate_key = array(
  * 		ENsoesie 	9/4/2013	Creation
  *	Remarks:
  *		Returns server settings needed by the client
+ *  Revisions:
+ * 		ENsoesie 	6/24/2014
+ * 			Adding API versioning, with initial version 1002
  ***********/
 function chat_server_status() {
-	global $mysqlprefix, $version, $url, $settings;
+	global $g_clientAPIVer, $version, $settings;
 
 	$link = connect();
 	loadmibewmobsettings($link);
 
-	$row = select_one_row("SELECT * FROM ${mysqlprefix}chatmibewmobserverinfo", $link);
-	mysql_close($link);
-
-	if ($row != NULL) {
-		return array('name' => $settings['title'],
-					 'URL' => $url,		// TODO: Need to infer this either from the request or during installation
-					 'version' => $version,	// TODO: This is the version as reported by mibew
-					 'logoURL' => $settings['logo'],
-					 'mibewMobVersion' => $row['apiversion'],
-					 'installationid' => $row['installationid'],
-					 'propertyrevision' => (int)$row['propertyrevision'],
-					 'server_status' => 'on',
-					 'errorCode' => ERROR_SUCCESS);
-	} else {
-		return array('errorCode' => ERROR_UNKNOWN);
+	if ($g_clientAPIVer == null) {
+		// This is an old client. This is deprecated and will be removed
+		// in subsequent releases as it exposes security holes
+		$row = select_one_row("SELECT * FROM ${mysqlprefix}chatmibewmobserverinfo", $link);
+		mysql_close($link);
+	
+		if ($row != NULL) {
+			return array('name' => $settings['title'],
+						 'URL' => $url,		// TODO: Need to infer this either from the request or during installation
+						 'version' => $version,	// TODO: This is the version as reported by mibew
+						 'logoURL' => $settings['logo'],
+						 'mibewMobVersion' => $row['apiversion'],
+						 'installationid' => $row['installationid'],
+						 'propertyrevision' => (int)$row['propertyrevision'],
+						 'server_status' => 'on',
+						 'errorCode' => ERROR_SUCCESS);
+		} else {
+			return array('errorCode' => ERROR_UNKNOWN);
+		}
 	}
+
+	// This is for api 1002 and above. No need to special case as of yet
+	mysql_close($link);
+	return array('version' => $version,	// This is the version as reported by mibew
+				 'mibewMobVersion' => $settings['sclrmm_apiversion'],
+				 'server_status' => 'on',
+				 'errorCode' => ERROR_SUCCESS);
 }
 
 /***********
@@ -124,8 +139,13 @@ function chat_server_status() {
  *	  	Logs in the client
  * Author:
  * 		ENsoesie 	9/4/2013	Creation
- ***********/
+ *  Revisions:
+ * 		ENsoesie 	6/24/2014
+ * 			Adding API versioning, with initial version 1002
+ *  ***********/
 function mobile_login($username, $password, $deviceuuid) {
+	global $g_clientAPIVer;
+		
 	if (isset($username) && isset($password) && isset($deviceuuid)) {
 		// Note: Blank passwords not currently allowed.
 		
@@ -136,7 +156,26 @@ function mobile_login($username, $password, $deviceuuid) {
 		if (isset($op) && check_password_hash($username, $password, $op['vcpassword'])) {
 			$link = connect();
 			$oprtoken = create_operator_session($op, $deviceuuid, $link);
-			$out = array('oprtoken' => $oprtoken,
+			
+			if ($g_clientAPIVer == null) {
+				// This is an old client. This is deprecated and will be removed
+				// in subsequent releases as it exposes security holes
+				$out = array('oprtoken' => $oprtoken,
+							 'operatorid' => $op['operatorid'],
+							 'localename' => $op['vclocalename'],
+							 'commonname' => $op['vccommonname'],
+							 'permissions' => $op['iperm'],
+							 'username' => $op['vclogin'],
+							 'email' => $op['vcemail'],
+							 'status' => $op['istatus'],
+							 'lastvisited' => $op['dtmlastvisited'],
+							 'errorCode' => ERROR_SUCCESS);
+				mysql_close($link);
+				return $out;
+			}
+
+			// This is for api 1002 and above. No need to sepcial case as of yet
+			$oprInfo = array('oprtoken' => $oprtoken,
 						 'operatorid' => $op['operatorid'],
 						 'localename' => $op['vclocalename'],
 						 'commonname' => $op['vccommonname'],
@@ -144,15 +183,27 @@ function mobile_login($username, $password, $deviceuuid) {
 						 'username' => $op['vclogin'],
 						 'email' => $op['vcemail'],
 						 'status' => $op['istatus'],
-						 'lastvisited' => $op['dtmlastvisited'],
-						 'errorCode' => ERROR_SUCCESS);
+						 'lastvisited' => $op['dtmlastvisited']);
+
+			global $version, $settings;
+			loadmibewmobsettings($link);
+			
+			$serverInfo = array('name' => $settings['title'],
+								 'version' => $version,	// This is the version as reported by mibew
+								 'logoURL' => $settings['logo'],
+								 'mibewMobVersion' => $settings['sclrmm_apiversion'],
+								 'installationid' => $settings['sclrmm_installationid']);
+
 			mysql_close($link);
+
+			$out = array('serverinfo' => $serverInfo,
+						 'operatorinfo' => $oprInfo,
+						 'errorCode' => ERROR_SUCCESS);
 			return $out;
 		}
 	}
-	
+
 	$out = array('errorCode' => ERROR_LOGIN_FAILED);
-	
 	return $out;
 }
 
@@ -164,7 +215,10 @@ function mobile_login($username, $password, $deviceuuid) {
  *	  	Logs out the client
  * Author:
  * 		ENsoesie 	9/4/2013	Creation
- ***********/
+ *  Revisions:
+ * 		ENsoesie 	6/24/2014
+ * 			This is unchanged for initial API version 1002
+ *  ***********/
 function mobile_logout($oprtoken) {
 	global $mysqlprefix;
 
@@ -229,8 +283,8 @@ function create_operator_session($op, $deviceuuid, $link) {
 		$deviceid = mysql_insert_id($link);
 	}
 	
-	// Token is the first 10 characters of the md5 of the current time
-	$oprtoken = strtoupper(substr(md5(time()), 0, 10));
+	// Token is the first 20 characters of the sha1 of the current time
+	$oprtoken = strtoupper(substr(sha1(time()), 0, 20));
 	
 	$query = "INSERT INTO ${mysqlprefix}chatoperatorsession (operatorid, oprtoken, deviceid) VALUES " .
 			 "(" . $op['operatorid'] . ", '$oprtoken', $deviceid)";
@@ -253,7 +307,7 @@ function operator_from_token($oprtoken, $link) {
 	global $mysqlprefix;
 	
 	$query = "SELECT operatorid, deviceid FROM ${mysqlprefix}chatoperatorsession " .
-			 "WHERE oprtoken = '$oprtoken'";
+			 "WHERE oprtoken = '$oprtoken' AND inprogress = 1";
 	$row = select_one_row($query, $link);
 
 	return $row;
@@ -268,7 +322,10 @@ function operator_from_token($oprtoken, $link) {
  *	    those who already have a chat in session
  * Author:
  * 		ENsoesie 	9/4/2013	Creation
- ***********/
+ *  Revisions:
+ * 		ENsoesie 	6/24/2014
+ * 			This is unchanged for initial API version 1002
+ *  ***********/
 function get_active_visitors($oprtoken, $deviceVisitors, $stealthMode) {
 	$link = connect();
 
@@ -399,51 +456,6 @@ function get_pending_threads($deviceVisitors, $deviceid, $link)
 		}
 	}
 	return $output;
-
-/*		if (count($threadListInsert) > 0) {
-			// Create $data to be inserted of the form "(threadid, deviceid, istate, shownmessageid),..."
-			$firstDataElement = true;
-			$data = NULL;
-		
-			foreach($threadListInsert as $insertItem) {
-				if (!$firstDataElement) {
-					$data.= ", ";
-				}
-				else {
-					$firstDataElement = false;
-				}
-				
-				$data.= "(" . $insertItem['threadid']. ", ". $deviceid . ", " . $insertItem['state'] . ", " .
-						(isset($insertItem['shownmessageid']) ? $insertItem['shownmessageid'] : '0') . ")";
-			}
-		
-			// Create the query
-			$query = "INSERT INTO ${mysqlprefix}chatsyncedthreads " .
-					 "(threadid, deviceid, istate, shownmessageid) VALUES ";
-			$query.= $data;
-			
-			$newlink = connect();
-			perform_query($query, $newlink);
-			mysql_close($newlink);
-		}
-
-		foreach($threadListUpdate as $updateItem) {
-			// Create the query
-			$query = "UPDATE ${mysqlprefix}chatsyncedthreads " .
-					 "SET istate = " . $updateItem['istate'] . ", " .
-					 (isset($updateItem['shownmessageid']) ? $updateItem['shownmessageid'] : '0') .
-					 " WHERE threadid = " . $updateItem['threadid'] . " AND deviceid = $deviceid";
-			$newlink = connect();
-			perform_query($query, $link);
-			mysql_close($newlink);
-		}
-	}*/
-
-
-	//foreach ($output as $thr) {
-		//print myiconv($webim_encoding, "utf-8", $thr);
-	//}
-
 }
 
 /***********
@@ -566,7 +578,10 @@ function get_sanitized_message($messageid, $link) {
  * 		or taking over the chat.
  * Author:
  * 		ENsoesie 	9/4/2013	Creation
- ***********/
+ *  Revisions:
+ * 		ENsoesie 	6/24/2014
+ * 			This is unchanged for initial API version 1002
+ *  ***********/
 function start_chat($oprtoken, $threadid) {
 	global $state_chatting, $state_closed;
 	$link = connect();
@@ -655,7 +670,10 @@ function start_chat($oprtoken, $threadid) {
  *	  	Get messages that have not yet been sync'ed for the current chat session
  * Author:
  * 		ENsoesie 	9/7/2013	Creation
- ***********/
+ *  Revisions:
+ * 		ENsoesie 	6/24/2014
+ * 			This is unchanged for initial API version 1002
+ *  ***********/
 function get_new_messages($oprtoken, $threadid, $chattoken, $istyping) {
 	$link = connect();
 	$oprSession = operator_from_token($oprtoken, $link);
@@ -903,6 +921,18 @@ function close_thread_mobile($oprtoken, $threadid) {
 	 
 /***********
  * Method:	
+ *		invalid_apiversion
+ * Description:
+ *	  	Returns an invalid api version error message
+ * Author:
+ * 		ENsoesie 	6/24/2014	Creation
+ ***********/
+ function invalid_apiversion() {
+	 return array('errorCode' => ERROR_INVALID_API_VERSION);
+ }
+
+ /***********
+ * Method:	
  *		batch_op_messages
  * Description:
  *	  	Post a batch of messages from the mobile operator
@@ -928,7 +958,10 @@ function batch_op_messages($oprtoken, $oprtoken, $opMessages) {
  *	  	i.e, one that the operator is not yet aware off.
  * Author:
  * 		ENsoesie 	12/4/2013	Creation
- ***********/
+ *  Revisions:
+ * 		ENsoesie 	6/24/2014
+ * 			This is unchanged for initial API version 1002
+ *  ***********/
 function get_active_visitors_notification($oprtoken, $deviceVisitors, $stealthMode) {
 	global $webim_encoding, $settings, $state_closed, $state_left, $mysqlprefix;
 	
@@ -1013,6 +1046,55 @@ function get_active_visitors_notification($oprtoken, $deviceVisitors, $stealthMo
 
 	return $out;
 }
+
+
+/**************
+ *	 Method:	
+ *		sync_server_and_operator_details
+ * Description:
+ *	  	Returns server and operator details to be using for
+ *	  	synchronizing the client
+ * Author:
+ * 		ENsoesie 	7/1/2014	Creation
+ *  ***********/
+function sync_server_and_operator_details($oprtoken) {
+	$link = connect();
+	
+	$oprSession = operator_from_token($oprtoken, $link);
+	$operatorId = $oprSession['operatorid'];
+	$deviceid = $oprSession['deviceid'];
+	
+	if ($operatorId != null) {
+		$oprInfo = array('oprtoken' => $oprtoken,
+					 'operatorid' => $op['operatorid'],
+					 'localename' => $op['vclocalename'],
+					 'commonname' => $op['vccommonname'],
+					 'permissions' => $op['iperm'],
+					 'username' => $op['vclogin'],
+					 'email' => $op['vcemail'],
+					 'status' => $op['istatus'],
+					 'lastvisited' => $op['dtmlastvisited']);
+	
+		global $version, $settings;
+		loadmibewmobsettings($link);
+		mysql_close($link);
+		
+		$serverInfo = array('name' => $settings['title'],
+							 'version' => $version,	// This is the version as reported by mibew
+							 'logoURL' => $settings['logo'],
+							 'mibewMobVersion' => $settings['sclrmm_apiversion'],
+							 'installationid' => $settings['sclrmm_installationid']);
+		$out = array('serverinfo' => $serverInfo,
+			 'operatorinfo' => $oprInfo,
+			 'errorCode' => ERROR_SUCCESS);
+		return $out;
+	}
+
+	mysql_close($link);
+	$out = array('errorCode' => ERROR_LOGIN_FAILED);
+	return $out;
+}	
+		
 
 
 /**************

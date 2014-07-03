@@ -53,15 +53,6 @@ $dbtables = array(
 		"deviceid" => "int NOT NULL",
 		"inprogress" => "tinyint NOT NULL DEFAULT '1'",
 		"dtmstarted" => "timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP",
-	),
-
-	"${mysqlprefix}chatmibewmobserverinfo" => array(
-		"installationid" => "varchar(50) COLLATE utf8_unicode_ci NOT NULL",
-		"apiversion" => "varchar(20) COLLATE utf8_unicode_ci NOT NULL",
-		"servername" => "varchar(50) COLLATE utf8_unicode_ci NOT NULL",
-		"logourl" => "varchar(256) COLLATE utf8_unicode_ci NOT NULL",
-		"dtmmodified" => "timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP",
-		"propertyrevision" => "int NOT NULL",
 	)
 );
 
@@ -88,8 +79,7 @@ $dbtables_can_update = array(
 	"${mysqlprefix}chatmessagesfromdevice" => array(),
 	"${mysqlprefix}chatsyncedthreads" => array(),
 	"${mysqlprefix}chatsyncedmessages" => array(),
-	"${mysqlprefix}chatoperatorsession" => array(),
-	"${mysqlprefix}chatmibewmobserverinfo" => array(),
+	"${mysqlprefix}chatoperatorsession" => array()
 );
 
 function show_install_err($text)
@@ -143,12 +133,6 @@ function create_table($id, $link)
 	}
 
 	mysql_query($query, $link) or show_install_err(' Query failed: ' . mysql_error($link));
-
-	if ($id == "${mysqlprefix}chatmibewmobserverinfo") {
-		perform_query("INSERT INTO ${mysqlprefix}chatmibewmobserverinfo " . 
-			"(installationid, apiversion, servername, logourl, propertyrevision) VALUES " . 
-			"(UPPER(CONVERT(MD5(CURRENT_TIMESTAMP) USING utf8)), '1', '<dummy name>', '', 1)", $link);
-	}
 }
 
 function get_tables($link)
