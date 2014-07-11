@@ -1333,5 +1333,46 @@ function take_thread2($thread, $operator, $link)
 }
 
 
+/**************
+ *	 Methods:
+ * 		perform_query_silent
+ * 		select_one_row_silent
+ *		select_multi_assoc_silent
+ * Description:
+ *	  	Database query methods, silent in the sense that they don't have the "die" aspect
+ * 		if something goes wrong. Borrowed from "common.php"
+ * Author:
+ * 		ENsoesie 	3/22/2014	Creation
+ ***********/
+function perform_query_silent($query, $link)
+{
+	mysql_query($query, $link);
+}
+
+function select_one_row_silent($query, $link)
+{
+	$result = mysql_query($query, $link);
+	if ($result == null) {
+		return null;
+	}
+	$line = mysql_fetch_array($result, MYSQL_ASSOC);
+	mysql_free_result($result);
+	return $line;
+}
+
+function select_multi_assoc_silent($query, $link)
+{
+	$sqlresult = mysql_query($query, $link);
+	if ($sqlresult == null) {
+		return null;
+	}
+	
+	$result = array();
+	while ($row = mysql_fetch_array($sqlresult, MYSQL_ASSOC)) {
+		$result[] = $row;
+	}
+	mysql_free_result($sqlresult);
+	return $result;
+}
 
 ?>

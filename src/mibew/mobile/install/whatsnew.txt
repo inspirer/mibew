@@ -1,5 +1,20 @@
   MibewMob Server Extenstion 
   
+ 1002 - July 7, 2014
+  -------------------
+  [!] Validated that MibewMob works with Mibew version 1.6.12 
+  [!] Changed the extension and API version number to a straight integer scheme.
+  [+] Laid the groundwork to address some privacy issues using API v1002
+      - Enforcing the client to provide an API version number to access the API
+      - For now, older clients can still access the API without a version number,
+        this should change with the next release when the deprecated APIs will be 
+        deleted
+  [+] Using POST to send the operator’s messages to the server. The first version
+      used GET instead.
+  [+] Provided the foundation to sync server settings and operator info when they
+      change on the server.
+
+
   1.0.1-beta
   -----
   [!] Re-organized the way the database handle is created and closed, to deal with an 'invalid MySQL resource' issue

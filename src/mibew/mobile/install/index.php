@@ -24,6 +24,7 @@ chdir('..');
 
 require_once('../libs/common.php');
 require_once('../libs/settings.php');
+require_once('functions.php');
 chdir($cwd);
 
 require_once('dbinfo.php');
@@ -315,7 +316,7 @@ function check_status()
 	
 	// If this is an upgrade to API 1002 or above, copy the installation id from the 
 	// chatmibewmobserverinfo table to the settigns
-	$row = select_one_row("SELECT * FROM ${mysqlprefix}chatmibewmobserverinfo", $link);
+	$row = select_one_row_silent("SELECT * FROM ${mysqlprefix}chatmibewmobserverinfo", $link);
 	mysql_close($link);
 
 	$inst_id = $row['installationid'];
