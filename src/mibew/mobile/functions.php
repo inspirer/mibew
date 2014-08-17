@@ -46,11 +46,6 @@ define('OPR_STATUS_ON',		 0);
 define('OPR_STATUS_AWAY',	 1);
 
 
-$url = "";
-$logoURL = "";
-$mibewMobVersion = "";
-$serverName = "Scalior Test Server";
-
 // Todo: These two arrays are from operator/upate.php.
 // They need to be put in a common place to be shared rather than duplicated
 $threadstate_to_string = array(
@@ -98,34 +93,12 @@ $threadstate_key = array(
  * 			Adding API versioning, with initial version 1002
  ***********/
 function chat_server_status() {
-	global $g_clientAPIVer, $version, $settings;
+	global $version, $settings;
 
 	$link = connect();
 	loadmibewmobsettings($link);
-
-	if ($g_clientAPIVer == null) {
-		// This is an old client. This is deprecated and will be removed
-		// in subsequent releases as it exposes security holes
-		$row = select_one_row("SELECT * FROM ${mysqlprefix}chatmibewmobserverinfo", $link);
-		mysql_close($link);
-	
-		if ($row != NULL) {
-			return array('name' => $settings['title'],
-						 'URL' => $url,		// TODO: Need to infer this either from the request or during installation
-						 'version' => $version,	// TODO: This is the version as reported by mibew
-						 'logoURL' => $settings['logo'],
-						 'mibewMobVersion' => $row['apiversion'],
-						 'installationid' => $row['installationid'],
-						 'propertyrevision' => (int)$row['propertyrevision'],
-						 'server_status' => 'on',
-						 'errorCode' => ERROR_SUCCESS);
-		} else {
-			return array('errorCode' => ERROR_UNKNOWN);
-		}
-	}
-
-	// This is for api 1002 and above. No need to special case as of yet
 	mysql_close($link);
+
 	return array('version' => $version,	// This is the version as reported by mibew
 				 'mibewMobVersion' => $settings['sclrmm_apiversion'],
 				 'server_status' => 'on',
@@ -144,7 +117,6 @@ function chat_server_status() {
  * 			Adding API versioning, with initial version 1002
  *  ***********/
 function mobile_login($username, $password, $deviceuuid) {
-	global $g_clientAPIVer;
 		
 	if (isset($username) && isset($password) && isset($deviceuuid)) {
 		// Note: Blank passwords not currently allowed.
@@ -157,24 +129,6 @@ function mobile_login($username, $password, $deviceuuid) {
 			$link = connect();
 			$oprtoken = create_operator_session($op, $deviceuuid, $link);
 			
-			if ($g_clientAPIVer == null) {
-				// This is an old client. This is deprecated and will be removed
-				// in subsequent releases as it exposes security holes
-				$out = array('oprtoken' => $oprtoken,
-							 'operatorid' => $op['operatorid'],
-							 'localename' => $op['vclocalename'],
-							 'commonname' => $op['vccommonname'],
-							 'permissions' => $op['iperm'],
-							 'username' => $op['vclogin'],
-							 'email' => $op['vcemail'],
-							 'status' => $op['istatus'],
-							 'lastvisited' => $op['dtmlastvisited'],
-							 'errorCode' => ERROR_SUCCESS);
-				mysql_close($link);
-				return $out;
-			}
-
-			// This is for api 1002 and above. No need to sepcial case as of yet
 			$oprInfo = array('oprtoken' => $oprtoken,
 						 'operatorid' => $op['operatorid'],
 						 'localename' => $op['vclocalename'],
@@ -1096,6 +1050,93 @@ function sync_server_and_operator_details($oprtoken) {
 }	
 		
 
+/**************
+ *	 Method:	
+ *		sync_canned_messages
+ * Description:
+ *	  	Returns canned messages that are not on the handheld or have
+ *	  	changed since the last sync
+ * Author:
+ * 		ENsoesie 	7/31/2014	Creation
+ *  ***********/
+function sync_canned_messages($oprtoken, $deviceCannedMsgHashes) {
+ 
+ 	$link = connect();
+	
+	$oprSession = operator_from_token($oprtoken, $link);
+	
+	if ($oprSession != null) {
+		global $mysqlprefix;
+		$query = "select * from ${mysqlprefix}chatresponses " .
+				 "where groupid is NULL OR groupid = 0 or groupid in (" .
+				 	"select groupid from ${mysqlprefix}chatgroupoperator " . 
+					"where operatorid = " . $oprSession['operatorid'] . ") " .
+				 "order by vcvalue";
+		$responses = select_multi_assoc($query, $link);
+		mysql_close($link);
+		
+		// Decode the visitor list and compare
+		// First break it by semi-colon
+		// $deviceCannedMsgHashes is of the format id,hash;1,crc32;2,crc32
+		$devCannedMsgs;
+		if ($deviceCannedMsgHashes != null) {
+			$devCannedMsgs = explode(';', $deviceCannedMsgHashes);
+		}
+		
+		$respOut = array();
+		if (count($responses) > 0) {
+			foreach($responses as $response) {
+				$response['hash'] = calculatechatresponsehash($response['vcvalue']);
+				
+				$found = false;
+				$foundKey;
+				
+				foreach($devCannedMsgs as $deviceMsgKey => $deviceMsgValue) {
+					// $deviceMsgValue is of the format id,hash
+					$devResponse = explode(',', $deviceMsgValue);
+					if ($response['id'] == $devResponse[0]) {
+						$found = true;
+						$foundKey = $deviceMsgKey;
+						
+						if ($response['hash'] != $devResponse[1]) {
+							$respOut[] = $response;
+						}
+						break;
+					}
+				}
+				
+				if (!$found) {
+					$respOut[] = $response;
+				} else {
+					unset($devCannedMsgs[$foundKey]);
+				}					
+			}
+		}
+		
+		$out = array('errorCode' => ERROR_SUCCESS);
+		if (count($respOut) > 0) {
+			$out['cannedmessages'] = $respOut;
+		}
+
+		// If there are still items in the $devCannedMsgs, then mark them for
+		// deletion on the device
+		if (count($devCannedMsgs) > 0) {
+			$idArray = array();
+			foreach ($devCannedMsgs as $value) {
+				$devResponse = explode(",", $value);
+				$idArray[] = intval($devResponse[0]);			
+			}
+			$out['deleted'] = $idArray;			
+		}
+		return $out;
+	}		
+	
+	mysql_close($link);
+	$out = array('errorCode' => ERROR_LOGIN_FAILED);
+	return $out;
+}
+
+
 
 /**************
  *	 Method:	
@@ -1146,7 +1187,46 @@ function loadmibewmobsettings($link)
 	
 }
 
+/**************
+ *	 Method:	
+ *		calculatechatresponsehash
+ * Description:
+ *		Get the hash using the CRC32 of the string
+ * Author:
+ * 		ENsoesie 	8/5/2014	Creation
+ ***********/
+function calculatechatresponsehash($response, $hashlen)
+{
+	$hash = crc32($response);
+	
+	$hashhex = dechex($hash);
+	$lenhex = strlen($hashhex);
 
+	if ($hashlen != null) {
+		$reslen = $hashlen;
+	} else {
+		$reslen = 8;
+	}
+	
+	
+	if ($lenhex <= $reslen) {
+		return $hashhex;
+	} else {
+		return substr($hashhex, $lenhex-$reslen, $reslen);
+	}
+}
+
+
+function validateAPIVersion($clientAPIVer) {
+	// If the api value is outside of the support values, return an error
+	// For API 1003, we no longer support client versions that don't provide
+	// the api version number
+	if ($clientAPIVer < 1002 || $clientAPIVer > 1003) {
+		return false;
+	} else {
+		return true;
+	}	
+}
 /**************
  *	 Method:	
  *		get_user_name2

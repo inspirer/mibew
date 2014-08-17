@@ -30,8 +30,8 @@ chdir($cwd);
 require_once('dbinfo.php');
 
 // API VERSION
-define('SCLRMM_APIVERSION', '1002');
-define('SCLRMM_DBVERSION', '1002');
+define('SCLRMM_APIVERSION', '1003');
+define('SCLRMM_DBVERSION', '1003');
 
 $page = array(
 	'version' => $version,
