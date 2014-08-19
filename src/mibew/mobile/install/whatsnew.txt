@@ -1,5 +1,13 @@
   MibewMob Server Extenstion 
   
+ 1003 - August 19, 2014
+  -------------------
+  [!] IMPORTANT! Blocked access of API from clients that don't provide a valid API version.
+      This means that once this version is installed, older clients that call the API without
+      without a proper API version will break. They will not be able to access the API.
+      Supported Android client versions are 1.0.0.22+
+  [+] Added support for synchronizing canned messages to the server
+  
  1002 - July 7, 2014
   -------------------
   [!] Validated that MibewMob works with Mibew version 1.6.12 
