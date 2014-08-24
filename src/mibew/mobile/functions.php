@@ -214,6 +214,8 @@ function create_operator_session($op, $deviceuuid, $link) {
 	$row = select_one_row("SELECT deviceid FROM ${mysqlprefix}chatdevices " . 
 						  "WHERE clientdeviceid = '$deviceuuid'", $link);
 
+	$loggedInOp = NULL;
+	$deviceid = NULL;
 	if ($row != NULL) {
 		$deviceid = $row['deviceid'];	
 		
@@ -323,11 +325,7 @@ function get_pending_threads($deviceVisitors, $deviceid, $link)
 			 "ORDER BY threadid DESC";
 	$rows = select_multi_assoc($query, $link);
 
-	/*if (strlen($deviceVisitors) > 0) {
-		json_decode($deviceVisitors);
-		$deviceVisitorArray = explode(",", $deviceVisitors);
-	}*/
-	
+	$deviceVisitorArray = null;
 	if (strlen($deviceVisitors) > 0) {
 		$deviceVisitorArray = json_decode($deviceVisitors, true);
 		$deviceVisitorCommaSepList = implode(',', $deviceVisitorArray);
@@ -537,7 +535,7 @@ function get_sanitized_message($messageid, $link) {
  * 			This is unchanged for initial API version 1002
  *  ***********/
 function start_chat($oprtoken, $threadid) {
-	global $state_chatting, $state_closed;
+	global $state_chatting, $state_closed, $can_viewthreads, $can_takeover;
 	$link = connect();
 	
 	$oprSession = operator_from_token($oprtoken, $link);
@@ -549,7 +547,7 @@ function start_chat($oprtoken, $threadid) {
 	}
 
 	$operator = operator_by_id_($operatorId, $link);
-	$chattoken = $_GET['token'];
+	$chattoken = verifyparam2('token', '/.+/');
 
 	$thread = thread_by_id_($threadid, $link);
 	if (!$thread || !isset($thread['ltoken'])) {
@@ -565,8 +563,8 @@ function start_chat($oprtoken, $threadid) {
 	
 	// If token is not set, this is a new chat session for this operator
 	if (!isset($chattoken)) {
-		$viewonly = filter_var($_GET['viewonly'], FILTER_VALIDATE_BOOLEAN);
-		$forcetake = filter_var($_GET['force'], FILTER_VALIDATE_BOOLEAN);
+		$viewonly = filter_var(verifyparam2('viewonly', '/.+/'), FILTER_VALIDATE_BOOLEAN);
+		$forcetake = filter_var(verifyparam2('force', '/.+/'), FILTER_VALIDATE_BOOLEAN);
 
 		if (!$viewonly && $thread['istate'] == $state_chatting && 
 			$operator['operatorid'] != $thread['agentId']) {
@@ -937,7 +935,7 @@ function get_active_visitors_notification($oprtoken, $deviceVisitors, $stealthMo
 				 "from ${mysqlprefix}chatthread where istate <> $state_closed AND istate <> $state_left ";
 		$rows = select_multi_assoc($query, $link);
 
-
+		$deviceVisitorArray = null;
 		if (strlen($deviceVisitors) > 0) {
 			$deviceVisitorArray = json_decode($deviceVisitors, true);
 			$deviceVisitorCommaSepList = implode(',', $deviceVisitorArray);
@@ -1019,29 +1017,32 @@ function sync_server_and_operator_details($oprtoken) {
 	$deviceid = $oprSession['deviceid'];
 	
 	if ($operatorId != null) {
-		$oprInfo = array('oprtoken' => $oprtoken,
-					 'operatorid' => $op['operatorid'],
-					 'localename' => $op['vclocalename'],
-					 'commonname' => $op['vccommonname'],
-					 'permissions' => $op['iperm'],
-					 'username' => $op['vclogin'],
-					 'email' => $op['vcemail'],
-					 'status' => $op['istatus'],
-					 'lastvisited' => $op['dtmlastvisited']);
-	
-		global $version, $settings;
-		loadmibewmobsettings($link);
-		mysql_close($link);
+		$op = operator_by_id_($operatorId, $link);
+		if ($op != null) {
+			$oprInfo = array('oprtoken' => $oprtoken,
+						 'operatorid' => $op['operatorid'],
+						 'localename' => $op['vclocalename'],
+						 'commonname' => $op['vccommonname'],
+						 'permissions' => $op['iperm'],
+						 'username' => $op['vclogin'],
+						 'email' => $op['vcemail'],
+						 'status' => $op['istatus'],
+						 'lastvisited' => $op['dtmlastvisited']);
 		
-		$serverInfo = array('name' => $settings['title'],
-							 'version' => $version,	// This is the version as reported by mibew
-							 'logoURL' => $settings['logo'],
-							 'mibewMobVersion' => $settings['sclrmm_apiversion'],
-							 'installationid' => $settings['sclrmm_installationid']);
-		$out = array('serverinfo' => $serverInfo,
-			 'operatorinfo' => $oprInfo,
-			 'errorCode' => ERROR_SUCCESS);
-		return $out;
+			global $version, $settings;
+			loadmibewmobsettings($link);
+			mysql_close($link);
+			
+			$serverInfo = array('name' => $settings['title'],
+								 'version' => $version,	// This is the version as reported by mibew
+								 'logoURL' => $settings['logo'],
+								 'mibewMobVersion' => $settings['sclrmm_apiversion'],
+								 'installationid' => $settings['sclrmm_installationid']);
+			$out = array('serverinfo' => $serverInfo,
+				 'operatorinfo' => $oprInfo,
+				 'errorCode' => ERROR_SUCCESS);
+			return $out;
+		}
 	}
 
 	mysql_close($link);
@@ -1078,7 +1079,7 @@ function sync_canned_messages($oprtoken, $deviceCannedMsgHashes) {
 		// Decode the visitor list and compare
 		// First break it by semi-colon
 		// $deviceCannedMsgHashes is of the format id,hash;1,crc32;2,crc32
-		$devCannedMsgs;
+		$devCannedMsgs = null;
 		if ($deviceCannedMsgHashes != null) {
 			$devCannedMsgs = explode(';', $deviceCannedMsgHashes);
 		}
@@ -1091,20 +1092,21 @@ function sync_canned_messages($oprtoken, $deviceCannedMsgHashes) {
 				$found = false;
 				$foundKey;
 				
-				foreach($devCannedMsgs as $deviceMsgKey => $deviceMsgValue) {
-					// $deviceMsgValue is of the format id,hash
-					$devResponse = explode(',', $deviceMsgValue);
-					if ($response['id'] == $devResponse[0]) {
-						$found = true;
-						$foundKey = $deviceMsgKey;
-						
-						if ($response['hash'] != $devResponse[1]) {
-							$respOut[] = $response;
+				if ($devCannedMsgs != null) {
+					foreach($devCannedMsgs as $deviceMsgKey => $deviceMsgValue) {
+						// $deviceMsgValue is of the format id,hash
+						$devResponse = explode(',', $deviceMsgValue);
+						if ($response['id'] == $devResponse[0]) {
+							$found = true;
+							$foundKey = $deviceMsgKey;
+							
+							if ($response['hash'] != $devResponse[1]) {
+								$respOut[] = $response;
+							}
+							break;
 						}
-						break;
 					}
-				}
-				
+				}				
 				if (!$found) {
 					$respOut[] = $response;
 				} else {
@@ -1140,39 +1142,6 @@ function sync_canned_messages($oprtoken, $deviceCannedMsgHashes) {
 
 /**************
  *	 Method:	
- *		verifyparam2
- * Description:
- *	  	Verifies that a parameter is set with the expected 
- * 		value. 
- * Author:
- * 		ENsoesie 	1/20/2014	Creation
- * Remark: 
- *		Borrowed from "common.php", but with the html removed.
- ***********/
-function verifyparam2($name, $regexp, $default = null)
-{
-		if (isset($_GET[$name])) {
-		$val = $_GET[$name];
-		if (preg_match($regexp, $val))
-			return $val;
-
-	} else if (isset($_POST[$name])) {
-		$val = $_POST[$name];
-		if (preg_match($regexp, $val))
-			return $val;
-
-	} else {
-		if (isset($default))
-			return $default;
-	}
-	
-	// Parameter not validated.
-	return false;
-}
-
-
-/**************
- *	 Method:	
  *		loadmibewmobsettings
  * Description:
  *		Loads mibewmob settings as well as general settings
@@ -1195,7 +1164,7 @@ function loadmibewmobsettings($link)
  * Author:
  * 		ENsoesie 	8/5/2014	Creation
  ***********/
-function calculatechatresponsehash($response, $hashlen)
+function calculatechatresponsehash($response, $hashlen = 8)
 {
 	$hash = crc32($response);
 	
@@ -1227,6 +1196,66 @@ function validateAPIVersion($clientAPIVer) {
 		return true;
 	}	
 }
+
+
+/**************
+ *	 Method:	
+ *		verifyparam2
+ * Description:
+ *	  	Verifies that a parameter is set with the expected 
+ * 		value. 
+ * Author:
+ * 		ENsoesie 	1/20/2014	Creation
+ * Remark: 
+ *		Borrowed from "common.php", but with the html removed.
+ ***********/
+function verifyparam2($name, $regexp, $default = null)
+{
+	if (isset($_GET[$name])) {
+		$val = $_GET[$name];
+		if (preg_match($regexp, $val))
+			return $val;
+
+	} else if (isset($_POST[$name])) {
+		$val = $_POST[$name];
+		if (preg_match($regexp, $val))
+			return $val;
+
+	} else {
+		if (isset($default))
+			return $default;
+	}
+	
+	// Parameter not validated.
+	return null;
+}
+
+/**************
+ *	 Method:	
+ *		verifyparam3
+ * Description:
+ *	  	Verifies that a parameter is set in given array 
+ * 		with the expected value. 
+ * Author:
+ * 		ENsoesie 	8/21/2014	Creation
+ ***********/
+function verifyparam3($name, $source, $regexp, $default = null)
+{
+	if ($source != null) {
+		if (isset($source[$name])) {
+			$val = $source[$name];
+			if (preg_match($regexp, $val))
+				return $val;
+		} else {
+			if (isset($default))
+				return $default;
+		}
+	}	
+	// Parameter not validated.
+	return null;
+}
+
+
 /**************
  *	 Method:	
  *		get_user_name2

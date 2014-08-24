@@ -49,20 +49,46 @@ fclose($outfile);
 header("Content-Type: application/json");
 
 
-$g_clientAPIVer = $_REQUEST['apiver'];
-$g_postInput;
+$g_clientAPIVer = verifyparam2("apiver", "/.+/");
+$g_postInput = null;
+$g_postCmd = null;
 if ($g_clientAPIVer == null) {
 	$g_postInput = json_decode(file_get_contents('php://input'), true);
-	$g_clientAPIVer = $g_postInput['apiver'];
+	$g_clientAPIVer = verifyparam3('apiver', $g_postInput, '/.+/');
+	$g_postCmd = verifyparam3('cmd', $g_postInput, '/.+/');
 }
 
+/* Uncomment this block for debugging
+
+$outfile = fopen("requestfile-".date('Y-m-d').".txt", "a");
+$request = date('Y-m-d G:i:s {');
+$request .= file_get_contents('php://input') . " -- ";
+foreach($g_postInput as $key => $value) {
+	$request .= "$key: $value, ";
+}
+$request .= "END}\r\n";
+
+fwrite($outfile, $request);
+fclose($outfile);
+*/
 
 process_client_command();
 
 
 // Mobile client command processor
 function process_client_command() {
-	if ($_GET['cmd'] == 'isalive') {
+	global $g_postCmd;
+	
+	$cmd = verifyparam2("cmd", "/.+/");
+	
+	if ($cmd == null && $g_postCmd == null) {
+		$out = invalid_command();
+		$jsonOut = json_encode($out);
+		echo $jsonOut;
+		return;
+	}
+
+	if ($cmd == 'isalive') {
 		$out = chat_server_status();
 		$jsonOut = json_encode($out);
 		echo $jsonOut;
@@ -76,25 +102,25 @@ function process_client_command() {
 		$jsonOut = json_encode($out);
 		echo $jsonOut;
 	}
-	else if($_GET['cmd'] == 'login') {
-		$username = $_GET['username'];
-		$password = $_GET['password'];
-		$deviceuuid = $_GET['deviceuuid'];
+	else if($cmd == 'login') {
+		$username = verifyparam2('username', '/.+/');
+		$password = verifyparam2('password', '/.+/');
+		$deviceuuid = verifyparam2('deviceuuid', '/.+/');
 		
 		$out = mobile_login($username, $password, $deviceuuid);
 		$jsonOut = json_encode($out);
 		echo $jsonOut;
 	}
-	else if($_GET['cmd'] == 'logout') {
-		$oprtoken = $_GET['oprtoken'];
+	else if($cmd == 'logout') {
+		$oprtoken = verifyparam2('oprtoken', '/.+/');
 	
 		$out = mobile_logout($oprtoken);
 		$jsonOut = json_encode($out);
 		echo $jsonOut;
 	}
-	else if ($_GET['cmd'] == 'visitorlist') {
-		$oprtoken = $_GET['oprtoken'];
-		$deviceVisitors = $_GET['activevisitors'];
+	else if ($cmd == 'visitorlist') {
+		$oprtoken = verifyparam2('oprtoken', '/.+/');
+		$deviceVisitors = verifyparam2('activevisitors', '/.+/');
 		$stealthMode = isset($_GET['stealth']);
 		
 		$out = get_active_visitors($oprtoken, $deviceVisitors, $stealthMode);
@@ -102,9 +128,9 @@ function process_client_command() {
 		$jsonOut = json_encode($out);
 		echo $jsonOut;
 	}
-	else if ($_GET['cmd'] == 'visitornotification') {
-		$oprtoken = $_GET['oprtoken'];
-		$deviceVisitors = $_GET['activevisitors'];
+	else if ($cmd == 'visitornotification') {
+		$oprtoken = verifyparam2('oprtoken', '/.+/');
+		$deviceVisitors = verifyparam2('activevisitors', '/.+/');
 		$stealthMode = isset($_GET['stealth']);
 	
 		$out = get_active_visitors_notification($oprtoken, $deviceVisitors, $stealthMode);
@@ -112,68 +138,33 @@ function process_client_command() {
 		$jsonOut = json_encode($out);
 		echo $jsonOut;
 	}
-	else if ($_GET['cmd'] == 'startchat') {
-		$oprtoken = $_GET['oprtoken'];
-		$threadid = $_GET['threadid'];
+	else if ($cmd == 'startchat') {
+		$oprtoken = verifyparam2('oprtoken', '/.+/');
+		$threadid = verifyparam2('threadid', '/.+/');
 		
 		$out = start_chat($oprtoken, $threadid);
 		$jsonOut = json_encode($out);
 		echo $jsonOut;
 	}
-	else if ($_GET['cmd'] == 'newmessages') {
-		$oprtoken = $_GET['oprtoken'];
-		$threadid = $_GET['threadid'];
-		$chattoken = $_GET['token'];
+	else if ($cmd == 'newmessages') {
+		$oprtoken = verifyparam2('oprtoken', '/.+/');
+		$threadid = verifyparam2('threadid', '/.+/');
+		$chattoken = verifyparam2('token', '/.+/');
 		$istyping = verifyparam2("typed", "/^1$/", "") == '1';
 		
 		$out = get_new_messages($oprtoken, $threadid, $chattoken, $istyping);
 		$jsonOut = json_encode($out);
 		echo $jsonOut;
 	}
-	else if ($_GET['cmd'] == 'ack-messages') {
-		// TODO: This should be a POST instead of a GET 
-		$oprtoken = $_GET['oprtoken'];
-		$msgList = $_GET['messageids'];
-		
-		$out = ack_messages($oprtoken, $msgList);
-		$jsonOut = json_encode($out);
-		echo $jsonOut;
-	}
-	// This is for old clients and will be deprecated.
-	// API 1002 and above have this being POSTed as a JSON string.
-	// See below
-	else if ($_GET['cmd'] == 'postmessage') {
-		// TODO: This should be a POST instead of a GET 
-		$oprtoken = $_GET['oprtoken'];
-		$threadid = $_GET['threadid'];
-		$chattoken = $_GET['token'];
-		$opMsgIdL = $_GET['messageidl'];
-		$opMsg = $_GET['message'];
-		
-		$out = msg_from_mobile_op($oprtoken, $threadid, $chattoken, $opMsgIdL, $opMsg);
-		$jsonOut = json_encode($out);
-		echo $jsonOut;
-	}
-	// This is for old clients and will be deprecated.
-	// API 1002 and above have this being POSTed as a JSON string.
-	// See below
-	else if ($_GET['cmd'] == 'closethread') {
-		$oprtoken = $_GET['oprtoken'];
-		$threadid = $_GET['threadid'];
-	
-		$out = close_thread_mobile($oprtoken, $threadid);
-		$jsonOut = json_encode($out);
-		echo $jsonOut;
-	}
-	else if($_GET['cmd'] == 'syncserveroperator') {
-		$oprtoken = $_GET['oprtoken'];
+	else if($cmd == 'syncserveroperator') {
+		$oprtoken = verifyparam2('oprtoken', '/.+/');
 	
 		$out = sync_server_and_operator_details($oprtoken);
 		$jsonOut = json_encode($out);
 		echo $jsonOut;
-	} else if ($_GET['cmd'] == 'synccannedmessages') {
-		$oprtoken = $_GET['oprtoken'];
-		$deviceCannedMsgHashes = $_GET['cannedmsghashes'];
+	} else if ($cmd == 'synccannedmessages') {
+		$oprtoken = verifyparam2('oprtoken', '/.+/');
+		$deviceCannedMsgHashes = verifyparam2('cannedmsghashes', '/.+/');
 	
 		$out = sync_canned_messages($oprtoken, $deviceCannedMsgHashes);
 		$jsonOut = json_encode($out);
@@ -198,21 +189,29 @@ function process_client_command() {
 	else if ($g_postInput != null)
 	{
 		// This may be JSON data that is POSTed. Try to parse it as such.
-		if ($g_postInput['cmd'] == 'postmessage') {
-			$oprtoken = $g_postInput['oprtoken'];
-			$threadid = $g_postInput['threadid'];
-			$chattoken = $g_postInput['token'];
-			$opMsgIdL = $g_postInput['messageidl'];
-			$opMsg = $g_postInput['message'];
+		if ($g_postCmd == 'postmessage') {
+			$oprtoken = verifyparam3('oprtoken', $g_postInput, '/.+/');
+			$threadid = verifyparam3('threadid', $g_postInput, '/.+/');
+			$chattoken = verifyparam3('token', $g_postInput, '/.+/');
+			$opMsgIdL = verifyparam3('messageidl', $g_postInput, '/.+/');
+			$opMsg = verifyparam3('message', $g_postInput, '/.+/');
 			
 			$out = msg_from_mobile_op($oprtoken, $threadid, $chattoken, $opMsgIdL, $opMsg);
 			$jsonOut = json_encode($out);
 			echo $jsonOut;
-		} else if ($g_postInput['cmd'] == 'closethread') {
-			$oprtoken = $g_postInput['oprtoken'];
-			$threadid = $g_postInput['threadid'];
+		} else if ($g_postCmd == 'closethread') {
+			$oprtoken = verifyparam3('oprtoken', $g_postInput, '/.+/');
+			$threadid = verifyparam3('threadid', $g_postInput, '/.+/');
 		
 			$out = close_thread_mobile($oprtoken, $threadid);
+			$jsonOut = json_encode($out);
+			echo $jsonOut;
+		} else if ($g_postCmd == 'ack-messages') {
+			// TODO: This should be a POST instead of a GET 
+			$oprtoken = verifyparam3('oprtoken', $g_postInput, '/.+/');
+			$msgList = verifyparam3('messageids', $g_postInput, '/.+/');
+			
+			$out = ack_messages($oprtoken, $msgList);
 			$jsonOut = json_encode($out);
 			echo $jsonOut;
 		} else {
