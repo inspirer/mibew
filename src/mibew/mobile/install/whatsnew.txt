@@ -1,0 +1,36 @@
+  MibewMob Server Extenstion 
+  
+ 1003 - August 24, 2014
+  -------------------
+  [!] IMPORTANT! Blocked access of API from clients that don't provide a valid API version.
+      This means that once this version is installed, older clients that call the API without
+      without a proper API version will break. They will not be able to access the API.
+      Supported Android client versions are 1.0.0.22+
+  [+] Added support for synchronizing canned messages to the server
+  [!] Fixed the php code to remove bugs that issue warnings and notices. On some servers with 
+  	  "display_errors" on, these notices are prepended to the JSON output causing the 
+  	  client to fail to parse the response.
+  
+ 1002 - July 7, 2014
+  -------------------
+  [!] Validated that MibewMob works with Mibew version 1.6.12 
+  [!] Changed the extension and API version number to a straight integer scheme.
+  [+] Laid the groundwork to address some privacy issues using API v1002
+      - Enforcing the client to provide an API version number to access the API
+      - For now, older clients can still access the API without a version number,
+        this should change with the next release when the deprecated APIs will be 
+        deleted
+  [+] Using POST to send the operator’s messages to the server. The first version
+      used GET instead.
+  [+] Provided the foundation to sync server settings and operator info when they
+      change on the server.
+
+
+  1.0.1-beta
+  -----
+  [!] Re-organized the way the database handle is created and closed, to deal with an 'invalid MySQL resource' issue
+  
+  1.0.0
+  -----
+  [!] Using 1.6.9 as the baseline
+  [+] Installation of all files and tables needed

@@ -1,0 +1,5 @@
+#!/bin/sh
+
+cd mibew/js/source
+ant
+rm -rf bin

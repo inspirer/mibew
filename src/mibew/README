@@ -1,0 +1,75 @@
+Mibew Messenger
+Copyright 2005-2014 the original author or authors.
+
+REQUIREMENTS
+
+ * Apache web server 1.3.34 or above
+ * MySQL database 5.0 or above
+ * PHP 4.x or above with MySQL support
+
+INSTALLATION
+
+ 1. Create folder with name 'mibew' in the root of your website.
+
+ 2. Upload all files contained in this archive (retaining the directory
+    structure) into the created folder.
+
+ 3. Make sure that the user, under which the web server is running (for
+    instance, www), is able to access and read all files in mibew folder
+    and all of its subfolders.
+
+    On *nix systems the simplest way is to use this pair of commands:
+
+    find -type f | xargs chmod 0644
+    find -type d | xargs chmod 0755
+
+ 4. Add a MySQL database to be used with Mibew Messenger (for instance, with
+    the name 'mibew').
+
+ 5. Edit mibew/libs/config.php to specify the information needed to connect
+    to the database.
+
+ 6. Using your web browser visit http://<yourdomain>/mibew/install/ and
+    hit 'Create tables'.
+
+ 7. Remove mibew/install/ directory from your server.
+
+ 8. On *nix platforms change the owner of mibew/images/avatar folder
+    to the user, under which the web server is running (for instance, www):
+
+    chown www mibew/images/avatar
+
+    The owner should have all rights on the folder mibew/images/avatar:
+
+    chmod u+rwx mibew/images/avatar
+
+
+ 9. Log in as
+                  user: admin
+                  password: <empty>
+
+10. Get button code and set it up on your site.
+
+11. Change your password and name.
+
+12. Wait for your visitors on the 'Pending users' page.
+
+UPDATE
+
+  1. Backup your mibew/libs/config.php
+
+  2. Backup your mibew/images/avatar folder.
+
+  3. Delete all items in mibew folder on the server.
+
+  4. Upload all files contained in the downloaded archive (retaining the
+     directory structure) into mibew folder.
+
+  5. Restore the MySQL database settings in mibew/libs/config.php
+
+  6. Visit http://<yourdomain>/mibew/install/ and follow the instructions
+     to update the database tables (if needed).
+
+  7. Remove mibew/install/ directory from your server.
+
+  8. Restore contents of mibew/images/avatar folder.
